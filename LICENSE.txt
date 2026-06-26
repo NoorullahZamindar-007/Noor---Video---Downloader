@@ -1,0 +1,9 @@
+﻿Personal Use License
+
+Copyright (c) 2026 Noor Video Downloader
+
+Permission is granted to use, copy, and modify this software for personal, non-commercial use.
+
+You may not use this software to download content you do not own or do not have permission to use. You may not use it to bypass DRM, paywalls, private accounts, login requirements, region locks, or platform protections.
+
+This software is provided "as is", without warranty of any kind. The user is responsible for complying with all applicable laws, platform terms, and content rights.
