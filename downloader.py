@@ -85,7 +85,7 @@ class VideoDownloader:
             raise DependencyError("Audio conversion requires FFmpeg. Please install FFmpeg and add it to PATH.")
 
         try:
-            with ytdlp.YoutubeDL({**self._base_options(), "skip_download": True}) as ydl:
+            with ytdlp.YoutubeDL({**self._base_options(), "skip_download": True}) as ydl: 
                 info = ydl.extract_info(url, download=False)
         except ytdlp.utils.DownloadError as exc:
             raise RuntimeError(self._friendly_error(str(exc), include_raw=True)) from exc
