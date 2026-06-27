@@ -65,7 +65,7 @@ class VideoDownloader:
         return {
             "title": info.get("title") or "Untitled",
             "duration": info.get("duration"),
-            "uploader": info.get("uploader") or info.get("channel") or "Unknown",
+            "uploader": info.get("uploader") or info.get("channel") or "Unknown", 
             "thumbnail": info.get("thumbnail"),
             "platform": detect_platform(url),
             "formats": self._simple_formats(info),
