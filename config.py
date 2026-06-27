@@ -6,7 +6,7 @@ from pathlib import Path
 
 APP_NAME = "Noor Video Downloader"
 NOTICE = "Only download content you own or have permission to use."
-DEFAULT_DOWNLOAD_DIR = Path.home() / "Downloads" / "Noor Video Downloader"
+DEFAULT_DOWNLOAD_DIR = Path.home() / "Downloads" / "Noor Video Downloader" 
 
 DATA_DIR = Path(os.getenv("LOCALAPPDATA") or (Path.home() / ".config")) / "NoorVideoDownloader"
 SETTINGS_FILE = DATA_DIR / "settings.json"
