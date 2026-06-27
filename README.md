@@ -5,7 +5,7 @@ A modern, permission-respecting desktop video downloader built with Python, Cust
 > Only download content you own or have permission to use.
 
 Noor Video Downloader is designed for public media downloads from supported platforms. It does not use cookies, stolen sessions, credential scraping, private APIs, DRM bypasses, login bypasses, paywall bypasses, private-account access, or region-lock workarounds.
-
+ 
 ## What It Does
 
 Noor Video Downloader gives you a clean desktop interface for fetching public media details, choosing a download quality, and saving the file with a safe filename.
