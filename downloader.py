@@ -111,7 +111,7 @@ class VideoDownloader:
             elif status.get("status") == "finished":
                 self._last_file = Path(status["filename"])
                 progress({"percent": 1.0, "speed": None, "eta": None, "text": "Finalizing"})
-
+ 
         options = self._base_options()
         options.update(
             {
