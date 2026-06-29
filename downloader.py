@@ -215,7 +215,7 @@ class VideoDownloader:
         return matches[-1] if matches else output_dir / base_filename
 
     @staticmethod
-    def _friendly_error(error: str, include_raw: bool = False) -> str:
+    def _friendly_error(error: str, include_raw: bool = False) -> str: 
         error = re.sub(r"\x1b\[[0-9;]*m", "", error).strip()
         text = error.lower()
         if any(word in text for word in ("private", "login", "sign in", "cookies", "members-only", "forbidden")):
