@@ -118,7 +118,7 @@ class VideoDownloader:
                 "format": QUALITY_FORMATS.get(quality, QUALITY_FORMATS["Best video"]),
                 "outtmpl": output_template,
                 "progress_hooks": [hook],
-                "windowsfilenames": True,
+                "windowsfilenames": True, 
                 "skip_download": False,
                 "overwrites": False,
                 "nooverwrites": False,
