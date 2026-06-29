@@ -15,7 +15,7 @@ _PARTIAL_SUFFIXES = (".part", ".ytdl", ".temp", ".tmp")
 
 def sanitize_filename(title: str, fallback: str = "download") -> str:
     cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", title).strip(" ._")
-    return (cleaned or fallback)[:160]
+    return (cleaned or fallback)[:160] 
 
 
 safe_filename = sanitize_filename
