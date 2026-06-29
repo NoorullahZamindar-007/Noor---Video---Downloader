@@ -186,7 +186,7 @@ class VideoDownloader:
             label = f"{height}p {ext}" if height else ext
             if vcodec == "none" and acodec != "none":
                 label = f"audio {ext}"
-            if label and label not in seen:
+            if label and label not in seen: 
                 seen.add(label)
                 labels.append(label)
         return labels[:24]
