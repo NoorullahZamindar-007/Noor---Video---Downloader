@@ -40,6 +40,10 @@ def validate_url(url: str) -> tuple[bool, str]:
     parsed = urlparse(url.strip())
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         return False, "Enter a valid public http(s) media URL."
+    if parsed.username or parsed.password:
+        # Never hand embedded credentials to yt-dlp; they would be sent to
+        # the media host (and possibly logged) as part of the request.
+        return False, "URLs must not contain a username or password."
     if _is_non_public_host(parsed.hostname or ""):
         return False, "Local or private URLs are not supported."
     return True, ""
@@ -55,6 +59,7 @@ def detect_platform(url: str) -> str:
 
 if __name__ == "__main__":
     assert validate_url("https://youtu.be/abc")[0]
+    assert not validate_url("https://user:secret@youtube.com/watch?v=abc")[0]
     assert not validate_url("not a url")[0]
     assert not validate_url("http://127.0.0.1/video")[0]
     assert not validate_url("http://[::1]/video")[0]
