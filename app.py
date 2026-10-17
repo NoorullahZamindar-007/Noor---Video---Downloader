@@ -118,8 +118,9 @@ class NoorVideoDownloaderApp(ctk.CTk):
         self.copy_error_button.grid(row=1, column=1, padx=8, pady=(0, 8), sticky="w")
 
         self.history_box = ctk.CTkTextbox(tabs.tab("History"), wrap="word")
-        self.history_box.grid(row=0, column=0, padx=8, pady=8, sticky="nsew")
+        self.history_box.grid(row=0, column=0, columnspan=2, padx=8, pady=8, sticky="nsew")
         ctk.CTkButton(tabs.tab("History"), text="Refresh History", command=self._render_history).grid(row=1, column=0, padx=8, pady=(0, 8), sticky="w")
+        ctk.CTkButton(tabs.tab("History"), text="Clear History", fg_color="#7f1d1d", hover_color="#991b1b", command=self._clear_history).grid(row=1, column=1, padx=8, pady=(0, 8), sticky="w")
         self._render_history()
 
     def _check_dependencies(self) -> None:
@@ -304,6 +305,16 @@ class NoorVideoDownloaderApp(ctk.CTk):
         self.history = self.history[:100]
         write_json(HISTORY_FILE, self.history)
         self._render_history()
+
+    def _clear_history(self) -> None:
+        if not self.history:
+            return
+        if not messagebox.askyesno(APP_NAME, "Delete all download history entries?"):
+            return
+        self.history = []
+        write_json(HISTORY_FILE, self.history)
+        self._render_history()
+        self._log("Download history cleared.")
 
     def _render_history(self) -> None:
         self.history_box.delete("1.0", "end")
