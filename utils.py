@@ -87,8 +87,24 @@ def read_json(path: Path, fallback: Any) -> Any:
 
 
 def write_json(path: Path, data: Any) -> None:
+    """Write JSON atomically so a crash cannot leave a half-written file.
+
+    Settings and history are read with a silent fallback on corrupt JSON;
+    without an atomic write, a crash mid-save would silently reset the
+    user's settings and download history. The temp file + os.replace
+    dance keeps the old file intact until the new one is fully written.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=True), encoding="utf-8")
+    payload = json.dumps(data, indent=2, ensure_ascii=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        tmp.write_text(payload, encoding="utf-8")
+        os.replace(tmp, path)
+    finally:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def now_stamp() -> str:
@@ -153,6 +169,16 @@ def open_folder(path: str | Path) -> None:
 if __name__ == "__main__":
     assert sanitize_filename('bad<>:"/\\|?*name') == "bad_name"
     assert get_quality_label("Audio only MP3") == "audio-mp3"
+    # atomic write_json: round-trips data and leaves no temp files behind
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmpdir:
+        target = Path(tmpdir) / "sub" / "settings.json"
+        write_json(target, {"a": 1})
+        assert read_json(target, {}) == {"a": 1}
+        write_json(target, {"b": [1, 2]})
+        assert read_json(target, {}) == {"b": [1, 2]}
+        leftovers = [f.name for f in target.parent.iterdir() if f.name.startswith(".settings.json.")]
+        assert not leftovers, leftovers
 
 
 
