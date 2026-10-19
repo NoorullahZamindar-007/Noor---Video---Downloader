@@ -130,7 +130,12 @@ class VideoDownloader:
         if ffmpeg:
             ffmpeg_path = Path(ffmpeg)
             options["ffmpeg_location"] = str(ffmpeg_path)
-            os.environ["PATH"] = str(ffmpeg_path.parent) + os.pathsep + os.environ.get("PATH", "")
+            # yt-dlp spawns ffmpeg by name; prepend its dir only once so
+            # repeated downloads do not grow PATH without bound.
+            ffmpeg_dir = str(ffmpeg_path.parent)
+            path_entries = os.environ.get("PATH", "").split(os.pathsep)
+            if ffmpeg_dir not in path_entries:
+                os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
         if quality == "Audio only MP3":
             options["postprocessors"] = [
                 {
@@ -180,12 +185,14 @@ class VideoDownloader:
         seen: set[str] = set()
         for item in info.get("formats") or []:
             height = item.get("height")
-            ext = item.get("ext")
+            # yt-dlp does not guarantee "ext" on every format; a missing
+            # extension previously produced labels like "720p None".
+            ext = item.get("ext") or ""
             acodec = item.get("acodec")
             vcodec = item.get("vcodec")
-            label = f"{height}p {ext}" if height else ext
+            label = f"{height}p {ext}".strip() if height else ext
             if vcodec == "none" and acodec != "none":
-                label = f"audio {ext}"
+                label = f"audio {ext}".strip() or "audio"
             if label and label not in seen: 
                 seen.add(label)
                 labels.append(label)
