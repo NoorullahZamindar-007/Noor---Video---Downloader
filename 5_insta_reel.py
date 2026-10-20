@@ -9,7 +9,7 @@ def download_instagram_reel(url, output_text):
     output_text.delete("1.0", tk.END)
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=15)
         if response.status_code != 200:
             output_text.insert(tk.END, "❌ Failed to fetch URL. Make sure the link is public.\n")
             return
@@ -20,10 +20,17 @@ def download_instagram_reel(url, output_text):
             return
         
         video_url = video_url_match.group(1).replace("\\u0026", "&")
-        file_name = url.split("/")[-2] + ".mp4"
-        
+        # Extract the reel shortcode robustly: url.split("/")[-2] breaks when
+        # the URL has no trailing slash (".../reel/ABC123" -> "reel.mp4") and
+        # keeps query strings that are illegal in filenames.
+        shortcode_match = re.search(r"/reel/([A-Za-z0-9_-]+)", url)
+        if not shortcode_match:
+            output_text.insert(tk.END, "❌ Could not parse a reel ID from the URL.\n")
+            return
+        file_name = re.sub(r"[^A-Za-z0-9_-]", "_", shortcode_match.group(1)) + ".mp4"
+
         # Download video
-        with requests.get(video_url, headers=headers, stream=True) as r:
+        with requests.get(video_url, headers=headers, stream=True, timeout=15) as r:
             r.raise_for_status()
             with open(file_name, "wb") as f:
                 for chunk in r.iter_content(chunk_size=8192):
