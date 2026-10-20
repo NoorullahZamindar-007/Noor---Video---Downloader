@@ -120,7 +120,6 @@ class VideoDownloader:
                 "progress_hooks": [hook],
                 "windowsfilenames": True, 
                 "skip_download": False,
-                "overwrites": False,
                 "nooverwrites": False,
                 "continuedl": True,
                 "postprocessors": [],

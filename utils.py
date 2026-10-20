@@ -123,8 +123,8 @@ def format_bytes(value: int | float | None) -> str:
     if not value:
         return "-"
     size = float(value)
-    for unit in ("B", "KB", "MB", "GB"):
-        if size < 1024 or unit == "GB":
+    for unit in ("B", "KB", "MB", "GB", "TB", "PB"):
+        if size < 1024 or unit == "PB":
             return f"{size:.1f} {unit}"
         size /= 1024
     return "-"
