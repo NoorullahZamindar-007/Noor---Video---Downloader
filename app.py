@@ -33,6 +33,9 @@ class NoorVideoDownloaderApp(ctk.CTk):
         self.last_error_details = ""
         self.worker_running = False
         self.thumbnail_image = None
+        # Token guards against a stale thumbnail fetch overwriting a newer
+        # result when the user fetches info for several URLs in a row.
+        self._thumbnail_token = 0
 
         self.url_var = ctk.StringVar()
         self.platform_var = ctk.StringVar(value="Platform: -")
@@ -148,6 +151,9 @@ class NoorVideoDownloaderApp(ctk.CTk):
         self.duration_label.configure(text="Duration: -")
         self.formats_label.configure(text="Available qualities: fetch info to preview")
         self.thumbnail.configure(text="No thumbnail", image=None)
+        # Bump the token so an in-flight thumbnail fetch from before the
+        # clear cannot repopulate the preview afterwards.
+        self._thumbnail_token += 1
 
     def _choose_folder(self) -> None:
         folder = filedialog.askdirectory(initialdir=self.folder_var.get() or str(DEFAULT_DOWNLOAD_DIR))
@@ -220,6 +226,9 @@ class NoorVideoDownloaderApp(ctk.CTk):
             if kind == "info":
                 self._show_info(payload)  # type: ignore[arg-type]
                 self._finish_worker("Metadata ready")
+            elif kind == "thumbnail":
+                token, content = payload  # type: ignore[misc]
+                self._show_thumbnail(token, content)
             elif kind == "progress":
                 self._show_progress(payload)  # type: ignore[arg-type]
             elif kind == "done":
@@ -249,19 +258,48 @@ class NoorVideoDownloaderApp(ctk.CTk):
         self.platform_var.set(f"Platform: {info.get('platform') or detect_platform(self.url_var.get())}")
         formats = ", ".join(info.get("formats") or []) or "No separate quality list available"
         self.formats_label.configure(text=f"Available qualities: {formats}")
-        self._load_thumbnail(info.get("thumbnail"))
+        self._queue_thumbnail_fetch(info.get("thumbnail"))
 
-    def _load_thumbnail(self, url: str | None) -> None:
+    def _queue_thumbnail_fetch(self, url: str | None) -> None:
+        """Fetch the thumbnail without blocking the UI thread.
+
+        The network read used to run inline here, freezing the whole
+        window for up to 8 seconds on slow connections. It now runs in a
+        daemon thread and posts the raw bytes back through the events
+        queue; the Tk image is still created on the main thread in
+        _show_thumbnail.
+        """
+        self._thumbnail_token += 1
+        token = self._thumbnail_token
         if not url:
             self.thumbnail.configure(text="No thumbnail", image=None)
             return
+        self.thumbnail.configure(text="Loading thumbnail…", image=None)
+
+        def work() -> None:
+            try:
+                import requests
+
+                response = requests.get(url, timeout=8)
+                response.raise_for_status()
+                self.events.put(("thumbnail", (token, response.content)))
+            except Exception:
+                self.events.put(("thumbnail", (token, None)))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _show_thumbnail(self, token: int, content: bytes | None) -> None:
+        # A newer fetch may already be in flight; ignore stale results so
+        # the preview always matches the last metadata shown.
+        if token != self._thumbnail_token:
+            return
+        if not content:
+            self.thumbnail.configure(text="Thumbnail unavailable", image=None)
+            return
         try:
-            import requests
             from PIL import Image
 
-            response = requests.get(url, timeout=8)
-            response.raise_for_status()
-            image = Image.open(BytesIO(response.content))
+            image = Image.open(BytesIO(content))
             self.thumbnail_image = ctk.CTkImage(image, size=(220, 124))
             self.thumbnail.configure(text="", image=self.thumbnail_image)
         except Exception:
