@@ -27,7 +27,13 @@ def download_instagram_reel(url, output_text):
         if not shortcode_match:
             output_text.insert(tk.END, "❌ Could not parse a reel ID from the URL.\n")
             return
-        file_name = re.sub(r"[^A-Za-z0-9_-]", "_", shortcode_match.group(1)) + ".mp4"
+        base_name = re.sub(r"[^A-Za-z0-9_-]", "_", shortcode_match.group(1))
+        # Never silently overwrite a previous download with the same name.
+        file_name = base_name + ".mp4"
+        counter = 1
+        while os.path.exists(file_name):
+            counter += 1
+            file_name = f"{base_name} ({counter}).mp4"
 
         # Download video
         with requests.get(video_url, headers=headers, stream=True, timeout=15) as r:
@@ -41,30 +47,37 @@ def download_instagram_reel(url, output_text):
         output_text.insert(tk.END, f"❌ Error: {e}\n")
 
 # ------------------ GUI ------------------
-root = tk.Tk()
-root.title("📥 Instagram Reel Downloader")
-root.geometry("650x400")
-root.configure(bg="#1e1e2f")
+def _run_gui() -> None:
+    root = tk.Tk()
+    root.title("📥 Instagram Reel Downloader")
+    root.geometry("650x400")
+    root.configure(bg="#1e1e2f")
 
-# Title
-tk.Label(root, text="Instagram Reel Downloader", font=("Helvetica", 18, "bold"),
-         fg="#ff79c6", bg="#1e1e2f").pack(pady=10)
+    # Title
+    tk.Label(root, text="Instagram Reel Downloader", font=("Helvetica", 18, "bold"),
+             fg="#ff79c6", bg="#1e1e2f").pack(pady=10)
 
-# URL Entry
-tk.Label(root, text="Paste Public Reel URL:", font=("Arial", 12, "bold"),
-         fg="#f8f8f2", bg="#1e1e2f").pack(pady=5)
-url_entry = tk.Entry(root, font=("Arial", 12), width=60, fg="black")
-url_entry.pack(pady=5)
+    # URL Entry
+    tk.Label(root, text="Paste Public Reel URL:", font=("Arial", 12, "bold"),
+             fg="#f8f8f2", bg="#1e1e2f").pack(pady=5)
+    url_entry = tk.Entry(root, font=("Arial", 12), width=60, fg="black")
+    url_entry.pack(pady=5)
 
-# Download Button
-tk.Button(root, text="⬇️ Download Reel", command=lambda: download_instagram_reel(url_entry.get(), output_text),
-          font=("Arial", 12, "bold"), bg="#50fa7b", fg="black").pack(pady=10)
+    # Output Area (created before the button so the callback can use it)
+    output_text = scrolledtext.ScrolledText(root, width=75, height=12,
+                                            font=("Arial", 12), bg="#282a36", fg="#f8f8f2",
+                                            insertbackground="white")
+    output_text.pack(pady=10)
 
-# Output Area
-output_text = scrolledtext.ScrolledText(root, width=75, height=12,
-                                        font=("Arial", 12), bg="#282a36", fg="#f8f8f2",
-                                        insertbackground="white")
-output_text.pack(pady=10)
+    # Download Button
+    tk.Button(root, text="⬇️ Download Reel", command=lambda: download_instagram_reel(url_entry.get(), output_text),
+              font=("Arial", 12, "bold"), bg="#50fa7b", fg="black").pack(pady=10)
 
-# Run App
-root.mainloop()
+    # Run App
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    # Guarded so the download helper can be imported (e.g. by tests or
+    # tooling) without popping open a Tk window.
+    _run_gui()
