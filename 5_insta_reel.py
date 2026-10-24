@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import scrolledtext
+import json
 import requests
 import re
 import os
@@ -19,7 +20,14 @@ def download_instagram_reel(url, output_text):
             output_text.insert(tk.END, "❌ Cannot find video URL. Possibly private or removed.\n")
             return
         
-        video_url = video_url_match.group(1).replace("\\u0026", "&")
+        # The match is a JSON string literal, so decode every escape properly
+        # (e.g. \u0026 and \/); a plain replace only handled one case and
+        # left mangled URLs when the page escaped forward slashes.
+        raw_url = video_url_match.group(1)
+        try:
+            video_url = json.loads(f'"{raw_url}"')
+        except json.JSONDecodeError:
+            video_url = raw_url.replace("\\u0026", "&")
         # Extract the reel shortcode robustly: url.split("/")[-2] breaks when
         # the URL has no trailing slash (".../reel/ABC123" -> "reel.mp4") and
         # keeps query strings that are illegal in filenames.
