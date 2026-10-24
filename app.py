@@ -29,6 +29,13 @@ class NoorVideoDownloaderApp(ctk.CTk):
         self.events: queue.Queue[tuple[str, object]] = queue.Queue()
         self.settings = read_json(SETTINGS_FILE, {})
         self.history: list[dict] = read_json(HISTORY_FILE, [])
+
+        # A hand-edited or older settings.json could hold a quality string
+        # that no longer exists; without this the menu shows a value the
+        # downloader silently maps back to "Best video" anyway.
+        saved_quality = self.settings.get("quality")
+        if saved_quality not in QUALITY_OPTIONS:
+            saved_quality = QUALITY_OPTIONS[0]
         self.current_info: dict | None = None
         self.last_error_details = ""
         self.worker_running = False
@@ -39,8 +46,8 @@ class NoorVideoDownloaderApp(ctk.CTk):
 
         self.url_var = ctk.StringVar()
         self.platform_var = ctk.StringVar(value="Platform: -")
-        self.folder_var = ctk.StringVar(value=self.settings.get("download_folder", str(DEFAULT_DOWNLOAD_DIR)))
-        self.quality_var = ctk.StringVar(value=self.settings.get("quality", QUALITY_OPTIONS[0]))
+        self.folder_var = ctk.StringVar(value=self.settings.get("download_folder") or str(DEFAULT_DOWNLOAD_DIR))
+        self.quality_var = ctk.StringVar(value=saved_quality)
         self.progress_var = ctk.DoubleVar(value=0)
         self.speed_var = ctk.StringVar(value="Speed: -")
         self.eta_var = ctk.StringVar(value="ETA: -")
@@ -190,7 +197,11 @@ class NoorVideoDownloaderApp(ctk.CTk):
         if quality == "Audio only MP3" and not has_ffmpeg():
             self._show_error("Audio conversion requires FFmpeg. Please install FFmpeg and add it to PATH.")
             return
-        folder = self.folder_var.get()
+        # An empty folder entry would otherwise send ensure_folder down
+        # Path(""), which resolves to the app's working directory and drops
+        # the download somewhere the user will never look.
+        folder = self.folder_var.get().strip() or str(DEFAULT_DOWNLOAD_DIR)
+        self.folder_var.set(folder)
         self.progress_var.set(0)
         self.speed_var.set("Speed: -")
         self.eta_var.set("ETA: -")
