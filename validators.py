@@ -37,6 +37,10 @@ def _is_non_public_host(host: str) -> bool:
 
 
 def validate_url(url: str) -> tuple[bool, str]:
+    # Callers pass form input straight through; a None/empty value used to
+    # crash here with AttributeError instead of a clean validation error.
+    if not isinstance(url, str) or not url.strip():
+        return False, "Enter a valid public http(s) media URL."
     parsed = urlparse(url.strip())
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         return False, "Enter a valid public http(s) media URL."
