@@ -112,17 +112,29 @@ def now_stamp() -> str:
 
 
 def format_duration(seconds: int | float | None) -> str:
-    if not seconds:
+    # yt-dlp metadata is not guaranteed clean: a negative, NaN, infinite,
+    # or non-numeric duration used to render nonsense ("-2:30") or crash
+    # with ValueError/TypeError instead of showing "Unknown".
+    try:
+        total = int(seconds) if seconds is not None else 0
+    except (TypeError, ValueError, OverflowError):
         return "Unknown"
-    minutes, sec = divmod(int(seconds), 60)
+    if total <= 0:
+        return "Unknown"
+    minutes, sec = divmod(total, 60)
     hours, minutes = divmod(minutes, 60)
     return f"{hours}:{minutes:02d}:{sec:02d}" if hours else f"{minutes}:{sec:02d}"
 
 
 def format_bytes(value: int | float | None) -> str:
-    if not value:
+    # Same guard as format_duration: a negative, NaN, infinite, or
+    # non-numeric size used to render as "-90.0 B" or "nan B".
+    try:
+        size = float(value) if value is not None else 0.0
+    except (TypeError, ValueError):
         return "-"
-    size = float(value)
+    if size <= 0 or size != size or size == float("inf"):
+        return "-"
     for unit in ("B", "KB", "MB", "GB", "TB", "PB"):
         if size < 1024 or unit == "PB":
             return f"{size:.1f} {unit}"
@@ -131,7 +143,9 @@ def format_bytes(value: int | float | None) -> str:
 
 
 def format_eta(seconds: int | float | None) -> str:
-    if seconds is None:
+    # An ETA is a countdown, never a duration label: reuse the duration
+    # guard but report an unusable value as "-" rather than "Unknown".
+    if format_duration(seconds) == "Unknown":
         return "-"
     return format_duration(seconds)
 
@@ -168,6 +182,16 @@ def open_folder(path: str | Path) -> None:
 
 if __name__ == "__main__":
     assert sanitize_filename('bad<>:"/\\|?*name') == "bad_name"
+    assert format_duration(-90) == "Unknown"
+    assert format_duration(float("nan")) == "Unknown"
+    assert format_duration(float("inf")) == "Unknown"
+    assert format_duration("not-a-number") == "Unknown"
+    assert format_duration(90) == "1:30"
+    assert format_bytes(-5) == "-"
+    assert format_bytes(float("nan")) == "-"
+    assert format_bytes(2048) == "2.0 KB"
+    assert format_eta(-10) == "-"
+    assert format_eta(90) == "1:30"
     assert get_quality_label("Audio only MP3") == "audio-mp3"
     # atomic write_json: round-trips data and leaves no temp files behind
     import tempfile
