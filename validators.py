@@ -19,7 +19,10 @@ SUPPORTED_HOSTS = {
 
 def _is_non_public_host(host: str) -> bool:
     """Reject local or non-routable hosts; this tool fetches public media only."""
-    host = host.lower().removeprefix("www.")
+    # DNS treats a trailing dot as the same name, so "localhost." and
+    # "0.0.0.0." must be rejected too: without stripping it, those
+    # hosts sailed past this check and reached yt-dlp as local URLs.
+    host = host.lower().removeprefix("www.").rstrip(".")
     if host in {"localhost", "0.0.0.0"}:
         return True
     try:
@@ -66,6 +69,8 @@ if __name__ == "__main__":
     assert not validate_url("https://user:secret@youtube.com/watch?v=abc")[0]
     assert not validate_url("not a url")[0]
     assert not validate_url("http://127.0.0.1/video")[0]
+    assert not validate_url("http://localhost./video")[0]
+    assert not validate_url("http://0.0.0.0./video")[0]
     assert not validate_url("http://[::1]/video")[0]
     assert not validate_url("http://192.168.1.10/video")[0]
     assert detect_platform("https://www.instagram.com/reel/abc/") == "Instagram"
