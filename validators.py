@@ -57,7 +57,10 @@ def validate_url(url: str) -> tuple[bool, str]:
 
 
 def detect_platform(url: str) -> str:
-    host = (urlparse(url.strip()).hostname or "").lower().removeprefix("www.")
+    # DNS treats a trailing dot as the same name, so strip it like
+    # _is_non_public_host does: without this, "youtube.com." showed as
+    # "Other yt-dlp supported site" even though the URL validates fine.
+    host = (urlparse(url.strip()).hostname or "").lower().removeprefix("www.").rstrip(".")
     for domain, platform in SUPPORTED_HOSTS.items():
         if host == domain or host.endswith(f".{domain}"):
             return platform
@@ -74,3 +77,5 @@ if __name__ == "__main__":
     assert not validate_url("http://[::1]/video")[0]
     assert not validate_url("http://192.168.1.10/video")[0]
     assert detect_platform("https://www.instagram.com/reel/abc/") == "Instagram"
+    assert detect_platform("https://www.youtube.com./watch?v=abc") == "YouTube"
+    assert detect_platform("https://youtu.be./abc") == "YouTube"
