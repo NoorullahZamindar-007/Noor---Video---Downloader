@@ -174,10 +174,17 @@ def find_tool(name: str) -> str | None:
 
 def open_folder(path: str | Path) -> None:
     folder = ensure_folder(path)
-    if os.name == "nt":
-        os.startfile(folder)  # type: ignore[attr-defined]
-    else:
-        subprocess.Popen(["open" if os.uname().sysname == "Darwin" else "xdg-open", str(folder)])
+    try:
+        if os.name == "nt":
+            os.startfile(folder)  # type: ignore[attr-defined]
+        else:
+            subprocess.Popen(["open" if os.uname().sysname == "Darwin" else "xdg-open", str(folder)])
+    except OSError:
+        # A minimal install may have no xdg-open (or no associated viewer);
+        # that used to raise FileNotFoundError out of the button callback.
+        # There is nothing useful to show without a viewer, so stay silent
+        # rather than surfacing a traceback for a folder that does exist.
+        pass
 
 
 if __name__ == "__main__":
