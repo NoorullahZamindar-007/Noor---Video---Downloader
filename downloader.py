@@ -102,7 +102,10 @@ class VideoDownloader:
 
         quality_label = get_quality_label(quality)
         output_template, base_filename = get_unique_output_template(output_dir, info.get("title") or "download", quality_label)
-        cleanup_partial_files(output_dir, base_filename)
+        # Do NOT clean up partials here: get_unique_output_template only
+        # avoids finished files, so a .part left by a crashed run reuses
+        # this base name, and deleting it would defeat continuedl resume.
+        # Failed/cancelled downloads are still cleaned up below.
 
         def hook(status: dict) -> None:
             if self._cancel.is_set():
