@@ -232,28 +232,36 @@ class NoorVideoDownloaderApp(ctk.CTk):
         self.events.put(("progress", data))
 
     def _drain_events(self) -> None:
-        while not self.events.empty():
-            kind, payload = self.events.get()
-            if kind == "info":
-                self._show_info(payload)  # type: ignore[arg-type]
-                self._finish_worker("Metadata ready")
-            elif kind == "thumbnail":
-                token, content = payload  # type: ignore[misc]
-                self._show_thumbnail(token, content)
-            elif kind == "progress":
-                self._show_progress(payload)  # type: ignore[arg-type]
-            elif kind == "done":
-                self.progress_var.set(1)
-                self._finish_worker(f"Saved: {payload}")
-                self._add_history(str(payload))
-            elif kind == "cancelled":
-                self._finish_worker("Download cancelled")
-            elif kind == "error":
-                message, details = payload  # type: ignore[misc]
-                self._show_error(message, details)
-                self.worker_running = False
-                self.download_button.configure(state="normal")
-        self.after(100, self._drain_events)
+        # The reschedule must run even if one event handler throws:
+        # otherwise a single bad event kills the loop and the UI freezes
+        # in its last state while worker threads keep queueing events.
+        try:
+            while not self.events.empty():
+                kind, payload = self.events.get()
+                try:
+                    if kind == "info":
+                        self._show_info(payload)  # type: ignore[arg-type]
+                        self._finish_worker("Metadata ready")
+                    elif kind == "thumbnail":
+                        token, content = payload  # type: ignore[misc]
+                        self._show_thumbnail(token, content)
+                    elif kind == "progress":
+                        self._show_progress(payload)  # type: ignore[arg-type]
+                    elif kind == "done":
+                        self.progress_var.set(1)
+                        self._finish_worker(f"Saved: {payload}")
+                        self._add_history(str(payload))
+                    elif kind == "cancelled":
+                        self._finish_worker("Download cancelled")
+                    elif kind == "error":
+                        message, details = payload  # type: ignore[misc]
+                        self._show_error(message, details)
+                        self.worker_running = False
+                        self.download_button.configure(state="normal")
+                except Exception as exc:
+                    self._log(f"Ignoring failed UI event {kind!r}: {exc}")
+        finally:
+            self.after(100, self._drain_events)
 
     def _finish_worker(self, message: str) -> None:
         self.worker_running = False
