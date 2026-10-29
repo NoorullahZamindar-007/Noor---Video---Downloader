@@ -39,6 +39,27 @@ def _is_non_public_host(host: str) -> bool:
     )
 
 
+def host_resolves_to_non_public(host: str) -> bool:
+    """True if the host resolves to any non-public address, or cannot be resolved.
+
+    validate_url() only inspects the literal host string, so a
+    public-looking hostname whose DNS points at 127.0.0.1 (or any private
+    range — attacker-controlled DNS / DNS rebinding) would sail through
+    it and reach yt-dlp. Call this from the download/info paths only —
+    NOT from validate_url(), which runs on every keystroke in the URL box.
+    """
+    import socket
+
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return True
+    for _family, _type, _proto, _canon, sockaddr in infos:
+        if _is_non_public_host(sockaddr[0]):
+            return True
+    return False
+
+
 def validate_url(url: str) -> tuple[bool, str]:
     # Callers pass form input straight through; a None/empty value used to
     # crash here with AttributeError instead of a clean validation error.

@@ -16,7 +16,9 @@ from utils import (
     get_quality_label,
     get_unique_output_template,
 )
-from validators import detect_platform, validate_url
+from urllib.parse import urlparse
+
+from validators import detect_platform, host_resolves_to_non_public, validate_url
 
 
 class DownloadCancelled(Exception):
@@ -54,6 +56,10 @@ class VideoDownloader:
         ok, message = validate_url(url)
         if not ok:
             raise ValueError(message)
+        # Literal-host check passed, but the hostname may still resolve
+        # to a private address (see host_resolves_to_non_public).
+        if host_resolves_to_non_public(urlparse(url.strip()).hostname or ""):
+            raise ValueError("Local or private URLs are not supported.")
 
         ytdlp = self._yt_dlp()
         try:
@@ -76,6 +82,10 @@ class VideoDownloader:
         ok, message = validate_url(url)
         if not ok:
             raise ValueError(message)
+        # Literal-host check passed, but the hostname may still resolve
+        # to a private address (see host_resolves_to_non_public).
+        if host_resolves_to_non_public(urlparse(url.strip()).hostname or ""):
+            raise ValueError("Local or private URLs are not supported.")
 
         ytdlp = self._yt_dlp()
         self.reset()
