@@ -326,8 +326,16 @@ class NoorVideoDownloaderApp(ctk.CTk):
 
     def _show_progress(self, data: dict) -> None:
         percent = data.get("percent")
-        if percent is not None:
-            self.progress_var.set(max(0, min(1, float(percent))))
+        # Progress payloads come from yt-dlp hooks; a non-numeric value
+        # used to raise here, killing this event (the drain loop logs it,
+        # but the bar then freezes at its last value for the rest of the
+        # download). Ignore unusable values and keep the other fields.
+        try:
+            percent_value = float(percent) if percent is not None else None
+        except (TypeError, ValueError):
+            percent_value = None
+        if percent_value is not None and percent_value == percent_value:
+            self.progress_var.set(max(0, min(1, percent_value)))
         self.speed_var.set(f"Speed: {format_bytes(data.get('speed'))}/s")
         self.eta_var.set(f"ETA: {format_eta(data.get('eta'))}")
         self.status_var.set(data.get("text") or "Downloading")

@@ -1,13 +1,29 @@
 import tkinter as tk
 from tkinter import scrolledtext
+from urllib.parse import urlparse
 import json
 import requests
 import re
 import os
 
+
+def _is_instagram_reel_url(url: str) -> bool:
+    """Only Instagram reel links are fetchable here; anything else used to
+    be fetched blindly and then fail with a confusing 'cannot find video
+    URL' message (or fetch an arbitrary site the user pasted by mistake)."""
+    try:
+        host = (urlparse(url.strip()).hostname or "").lower().removeprefix("www.").rstrip(".")
+    except ValueError:
+        return False
+    return host in {"instagram.com", "instagr.am"} and "/reel/" in urlparse(url.strip()).path
+
+
 # ------------------ Functions ------------------
 def download_instagram_reel(url, output_text):
     output_text.delete("1.0", tk.END)
+    if not _is_instagram_reel_url(url):
+        output_text.insert(tk.END, "❌ Enter a public Instagram reel URL (instagram.com/reel/...).\n")
+        return
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         response = requests.get(url, headers=headers, timeout=15)
@@ -48,7 +64,8 @@ def download_instagram_reel(url, output_text):
             r.raise_for_status()
             with open(file_name, "wb") as f:
                 for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
+                    if chunk:  # skip keep-alive chunks
+                        f.write(chunk)
         output_text.insert(tk.END, f"✅ Reel downloaded as {file_name}\n")
         
     except Exception as e:
