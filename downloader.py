@@ -231,7 +231,20 @@ class VideoDownloader:
             for path in output_dir.iterdir()
             if path.is_file() and path.name.startswith(prefix) and ".part" not in path.name.lower() and ".ytdl" not in path.name.lower()
         )
-        return matches[-1] if matches else output_dir / base_filename
+        if matches:
+            return matches[-1]
+        # yt-dlp reported success but left no file we can point at (e.g.
+        # a postprocessor renamed the output unexpectedly). Returning
+        # the bare base path here used to make the app report "Saved:"
+        # and log a history entry for a file that does not exist, so
+        # fail loudly instead of claiming a success the user cannot open.
+        fallback = output_dir / base_filename
+        if fallback.exists():
+            return fallback
+        raise RuntimeError(
+            "Download finished but the output file could not be found in "
+            f"{output_dir}. The download may have produced an unexpected filename."
+        )
 
     @staticmethod
     def _friendly_error(error: str, include_raw: bool = False) -> str: 
