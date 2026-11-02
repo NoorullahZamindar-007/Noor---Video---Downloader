@@ -59,13 +59,22 @@ def download_instagram_reel(url, output_text):
             counter += 1
             file_name = f"{base_name} ({counter}).mp4"
 
-        # Download video
-        with requests.get(video_url, headers=headers, stream=True, timeout=15) as r:
-            r.raise_for_status()
-            with open(file_name, "wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    if chunk:  # skip keep-alive chunks
-                        f.write(chunk)
+        # Download video; a failure mid-stream used to leave a corrupt
+        # partial .mp4 behind that looked like a finished download (and
+        # pushed the next run to a "(2)" name), so remove it on failure.
+        try:
+            with requests.get(video_url, headers=headers, stream=True, timeout=15) as r:
+                r.raise_for_status()
+                with open(file_name, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        if chunk:  # skip keep-alive chunks
+                            f.write(chunk)
+        except Exception:
+            try:
+                os.remove(file_name)
+            except OSError:
+                pass
+            raise
         output_text.insert(tk.END, f"✅ Reel downloaded as {file_name}\n")
         
     except Exception as e:
