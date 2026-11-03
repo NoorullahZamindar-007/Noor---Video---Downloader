@@ -82,6 +82,16 @@ class VideoDownloader:
         ok, message = validate_url(url)
         if not ok:
             raise ValueError(message)
+        # An unknown quality string used to fall through to
+        # QUALITY_FORMATS.get(quality, "Best video") below and silently
+        # download the best format instead of the one asked for; fail
+        # fast here instead, before any metadata fetch or reset.
+        if quality not in QUALITY_FORMATS:
+            raise ValueError(
+                f"Unknown quality option: {quality!r}. "
+                f"Choose one of: {', '.join(QUALITY_FORMATS)}."
+            )
+
         # Literal-host check passed, but the hostname may still resolve
         # to a private address (see host_resolves_to_non_public).
         if host_resolves_to_non_public(urlparse(url.strip()).hostname or ""):
