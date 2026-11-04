@@ -299,9 +299,27 @@ class NoorVideoDownloaderApp(ctk.CTk):
             try:
                 import requests
 
-                response = requests.get(url, timeout=8)
-                response.raise_for_status()
-                self.events.put(("thumbnail", (token, response.content)))
+                # Stream with a size cap and an image content-type check:
+                # the old response.content read the whole body into
+                # memory, so an oversized reply (or an error page served
+                # with a 200) ballooned RAM before _show_thumbnail could
+                # reject it as undecodable.
+                max_bytes = 5 * 1024 * 1024
+                with requests.get(url, timeout=8, stream=True) as response:
+                    response.raise_for_status()
+                    content_type = (response.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+                    if not content_type.startswith("image/"):
+                        raise ValueError("Thumbnail URL did not return an image.")
+                    chunks = []
+                    total = 0
+                    for chunk in response.iter_content(chunk_size=65536):
+                        if not chunk:
+                            continue
+                        total += len(chunk)
+                        if total > max_bytes:
+                            raise ValueError("Thumbnail is too large.")
+                        chunks.append(chunk)
+                self.events.put(("thumbnail", (token, b"".join(chunks))))
             except Exception:
                 self.events.put(("thumbnail", (token, None)))
 
