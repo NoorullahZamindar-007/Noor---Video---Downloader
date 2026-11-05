@@ -236,13 +236,31 @@ class VideoDownloader:
             if mp3.exists():
                 return mp3
         prefix = f"{base_filename}."
-        matches = sorted(
+        matches = [
             path
             for path in output_dir.iterdir()
             if path.is_file() and path.name.startswith(prefix) and ".part" not in path.name.lower() and ".ytdl" not in path.name.lower()
-        )
+        ]
         if matches:
-            return matches[-1]
+            # Alphabetical order used to win here, so a sidecar file
+            # (thumbnail .jpg, .info.json) sorting after the media could
+            # be reported as the download. Prefer a real media file, and
+            # among those the most recently written one (the file this
+            # download actually produced, not a leftover from an earlier
+            # run that shares the base name).
+            media_exts = {
+                ".mp4", ".mkv", ".webm", ".mov", ".avi",
+                ".mp3", ".m4a", ".opus", ".wav", ".flac",
+            }
+
+            def sort_key(path):
+                try:
+                    mtime = path.stat().st_mtime
+                except OSError:
+                    mtime = 0.0
+                return (path.suffix.lower() in media_exts, mtime)
+
+            return max(matches, key=sort_key)
         # yt-dlp reported success but left no file we can point at (e.g.
         # a postprocessor renamed the output unexpectedly). Returning
         # the bare base path here used to make the app report "Saved:"
