@@ -11,7 +11,7 @@ import customtkinter as ctk
 
 from config import APP_NAME, DEFAULT_DOWNLOAD_DIR, HISTORY_FILE, NOTICE, QUALITY_OPTIONS, SETTINGS_FILE, WINDOW_SIZE
 from downloader import DependencyError, DownloadCancelled, VideoDownloader, has_ffmpeg, has_ytdlp
-from utils import format_bytes, format_duration, format_eta, now_stamp, open_folder, read_json, write_json
+from utils import coerce_dict, coerce_list, format_bytes, format_duration, format_eta, now_stamp, open_folder, read_json, write_json
 from validators import detect_platform, validate_url
 
 
@@ -27,8 +27,12 @@ class NoorVideoDownloaderApp(ctk.CTk):
 
         self.downloader = VideoDownloader()
         self.events: queue.Queue[tuple[str, object]] = queue.Queue()
-        self.settings = read_json(SETTINGS_FILE, {})
-        self.history: list[dict] = read_json(HISTORY_FILE, [])
+        # Settings/history are hand-editable JSON: coerce the shape so a
+        # valid-but-wrong JSON value (a list in settings.json, a dict in
+        # history.json) falls back to defaults instead of crashing the
+        # app at startup on .get/.insert.
+        self.settings = coerce_dict(read_json(SETTINGS_FILE, {}))
+        self.history: list[dict] = coerce_list(read_json(HISTORY_FILE, []))
 
         # A hand-edited or older settings.json could hold a quality string
         # that no longer exists; without this the menu shows a value the
@@ -405,6 +409,11 @@ class NoorVideoDownloaderApp(ctk.CTk):
             self.history_box.insert("end", "No downloads yet.\n")
             return
         for item in self.history:
+            # Same corrupt-file class as the coerce above: a hand-edited
+            # history entry that is not an object must not crash the
+            # render on .get; skip it instead.
+            if not isinstance(item, dict):
+                continue
             self.history_box.insert(
                 "end",
                 f"{item.get('time')} | {item.get('platform')} | {item.get('quality')}\n"

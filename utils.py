@@ -85,6 +85,22 @@ def read_json(path: Path, fallback: Any) -> Any:
     except (OSError, json.JSONDecodeError):
         return fallback
 
+def coerce_dict(value: Any) -> dict:
+    """Return *value* when it is a dict, else an empty dict.
+
+    Settings and history files are hand-editable JSON: a wrong shape
+    (a list where a dict belongs, or vice versa) used to crash the app
+    at startup on .get/.insert instead of falling back to defaults.
+    read_json only guards unreadable or malformed JSON, not valid JSON
+    of the wrong shape.
+    """
+    return value if isinstance(value, dict) else {}
+
+
+def coerce_list(value: Any) -> list:
+    """Return *value* when it is a list, else an empty list (see coerce_dict)."""
+    return value if isinstance(value, list) else []
+
 
 def write_json(path: Path, data: Any) -> None:
     """Write JSON atomically so a crash cannot leave a half-written file.
@@ -200,6 +216,12 @@ if __name__ == "__main__":
     assert format_eta(-10) == "-"
     assert format_eta(90) == "1:30"
     assert get_quality_label("Audio only MP3") == "audio-mp3"
+    assert coerce_dict({"a": 1}) == {"a": 1}
+    assert coerce_dict(["not", "a", "dict"]) == {}
+    assert coerce_dict(None) == {}
+    assert coerce_list([1, 2]) == [1, 2]
+    assert coerce_list({"a": 1}) == []
+    assert coerce_list(None) == []
     # atomic write_json: round-trips data and leaves no temp files behind
     import tempfile
     with tempfile.TemporaryDirectory() as tmpdir:
