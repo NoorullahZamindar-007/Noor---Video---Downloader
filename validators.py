@@ -65,7 +65,14 @@ def validate_url(url: str) -> tuple[bool, str]:
     # crash here with AttributeError instead of a clean validation error.
     if not isinstance(url, str) or not url.strip():
         return False, "Enter a valid public http(s) media URL."
-    parsed = urlparse(url.strip())
+    # urlparse raises ValueError on malformed bracketed hosts
+    # (e.g. "http://[::1/video"); without this a half-typed URL
+    # crashes the per-keystroke platform check and the Fetch/Download
+    # callbacks instead of showing the friendly message below.
+    try:
+        parsed = urlparse(url.strip())
+    except ValueError:
+        return False, "Enter a valid public http(s) media URL."
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         return False, "Enter a valid public http(s) media URL."
     if parsed.username or parsed.password:
@@ -81,7 +88,14 @@ def detect_platform(url: str) -> str:
     # DNS treats a trailing dot as the same name, so strip it like
     # _is_non_public_host does: without this, "youtube.com." showed as
     # "Other yt-dlp supported site" even though the URL validates fine.
-    host = (urlparse(url.strip()).hostname or "").lower().removeprefix("www.").rstrip(".")
+    if not isinstance(url, str) or not url.strip():
+        return "-"
+    try:
+        host = (urlparse(url.strip()).hostname or "").lower().removeprefix("www.").rstrip(".")
+    except ValueError:
+        # Same malformed-bracket case as validate_url: a half-typed
+        # URL must not crash the per-keystroke platform label.
+        return "-"
     for domain, platform in SUPPORTED_HOSTS.items():
         if host == domain or host.endswith(f".{domain}"):
             return platform
@@ -97,6 +111,10 @@ if __name__ == "__main__":
     assert not validate_url("http://0.0.0.0./video")[0]
     assert not validate_url("http://[::1]/video")[0]
     assert not validate_url("http://192.168.1.10/video")[0]
+    assert not validate_url("http://[::1/video")[0]
+    assert not validate_url("https://[256.256.256.256]/x")[0]
+    assert detect_platform("http://[::1/video") == "-"
+    assert detect_platform(None) == "-"
     assert detect_platform("https://www.instagram.com/reel/abc/") == "Instagram"
     assert detect_platform("https://www.youtube.com./watch?v=abc") == "YouTube"
     assert detect_platform("https://youtu.be./abc") == "YouTube"
