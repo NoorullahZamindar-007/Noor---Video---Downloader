@@ -14,6 +14,15 @@ _PARTIAL_SUFFIXES = (".part", ".ytdl", ".temp", ".tmp")
 
 
 def sanitize_filename(title: str, fallback: str = "download") -> str:
+    # yt-dlp metadata is not guaranteed clean: a missing title is
+    # guarded by callers with `or "download"`, but a non-string title
+    # (a number, for example) is truthy, so it slipped through and
+    # crashed re.sub with TypeError. Coerce it instead; None has no
+    # text at all, so it falls back.
+    if title is None:
+        return fallback
+    if not isinstance(title, str):
+        title = str(title)
     cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", title).strip(" ._")
     return (cleaned or fallback)[:160] 
 
@@ -205,6 +214,8 @@ def open_folder(path: str | Path) -> None:
 
 if __name__ == "__main__":
     assert sanitize_filename('bad<>:"/\\|?*name') == "bad_name"
+    assert sanitize_filename(None) == "download"
+    assert sanitize_filename(12345) == "12345"
     assert format_duration(-90) == "Unknown"
     assert format_duration(float("nan")) == "Unknown"
     assert format_duration(float("inf")) == "Unknown"
