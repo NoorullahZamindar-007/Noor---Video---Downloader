@@ -12,7 +12,13 @@ import customtkinter as ctk
 from config import APP_NAME, DEFAULT_DOWNLOAD_DIR, HISTORY_FILE, NOTICE, QUALITY_OPTIONS, SETTINGS_FILE, WINDOW_SIZE
 from downloader import DependencyError, DownloadCancelled, VideoDownloader, has_ffmpeg, has_ytdlp
 from utils import coerce_dict, coerce_list, format_bytes, format_duration, format_eta, now_stamp, open_folder, read_json, write_json
-from validators import detect_platform, validate_url
+from urllib.parse import urlparse
+
+from validators import (
+    detect_platform,
+    host_resolves_to_non_public,
+    validate_url,
+)
 
 
 class NoorVideoDownloaderApp(ctk.CTk):
@@ -302,6 +308,19 @@ class NoorVideoDownloaderApp(ctk.CTk):
         def work() -> None:
             try:
                 import requests
+
+                # The thumbnail URL comes from yt-dlp metadata (the
+                # video page), so it is attacker-influenced: the
+                # download/info paths validate the user URL and reject
+                # private hosts, but this fetch did neither, so a
+                # thumbnail pointing at 127.0.0.1 or a LAN address made
+                # the app GET an internal address. Apply the same
+                # checks here; a failure just shows "Thumbnail
+                # unavailable" instead of fetching anything.
+                if not validate_url(url)[0]:
+                    raise ValueError("Thumbnail URL is not a valid public URL.")
+                if host_resolves_to_non_public(urlparse(url).hostname or ""):
+                    raise ValueError("Thumbnail URL points at a private host.")
 
                 # Stream with a size cap and an image content-type check:
                 # the old response.content read the whole body into
