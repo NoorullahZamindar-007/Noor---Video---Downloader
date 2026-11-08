@@ -68,6 +68,12 @@ class VideoDownloader:
         except ytdlp.utils.DownloadError as exc:
             raise RuntimeError(self._friendly_error(str(exc), include_raw=True)) from exc
 
+        # yt-dlp can return None for a URL whose extractor yields no
+        # result; using it unguarded raised a raw AttributeError instead
+        # of a clear message.
+        if not isinstance(info, dict):
+            raise RuntimeError("Could not read video information for this URL.")
+
         return {
             "title": info.get("title") or "Untitled",
             "duration": info.get("duration"),
@@ -110,6 +116,9 @@ class VideoDownloader:
         except ytdlp.utils.DownloadError as exc:
             raise RuntimeError(self._friendly_error(str(exc), include_raw=True)) from exc
 
+        if not isinstance(info, dict):
+            raise RuntimeError("Could not read video information for this URL.")
+
         quality_label = get_quality_label(quality)
         output_template, base_filename = get_unique_output_template(output_dir, info.get("title") or "download", quality_label)
         # Do NOT clean up partials here: get_unique_output_template only
@@ -132,7 +141,11 @@ class VideoDownloader:
                     }
                 )
             elif status.get("status") == "finished":
-                self._last_file = Path(status["filename"])
+                # The only direct [] access on a hook payload: a finished
+                # status without a filename used to raise KeyError here.
+                filename = status.get("filename")
+                if filename:
+                    self._last_file = Path(filename)
                 progress({"percent": 1.0, "speed": None, "eta": None, "text": "Finalizing"})
  
         options = self._base_options()
@@ -179,6 +192,12 @@ class VideoDownloader:
         except Exception:
             cleanup_partial_files(output_dir, base_filename)
             raise
+
+        # Same None-result guard as the metadata fetch above: _final_path
+        # calls .get on this, so a None result escaped as a raw
+        # AttributeError after a "successful" download.
+        if not isinstance(downloaded_info, dict):
+            raise RuntimeError("Download finished but no video information was returned.")
 
         return self._final_path(downloaded_info, output_dir, base_filename, quality_label)
 
@@ -236,9 +255,16 @@ class VideoDownloader:
             if mp3.exists():
                 return mp3
         prefix = f"{base_filename}."
+        try:
+            entries = list(output_dir.iterdir())
+        except OSError:
+            # The folder may have been deleted mid-download; fall through
+            # to the "output file could not be found" error below instead
+            # of escaping as a raw FileNotFoundError.
+            entries = []
         matches = [
             path
-            for path in output_dir.iterdir()
+            for path in entries
             if path.is_file() and path.name.startswith(prefix) and ".part" not in path.name.lower() and ".ytdl" not in path.name.lower()
         ]
         if matches:
