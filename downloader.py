@@ -68,9 +68,21 @@ class VideoDownloader:
         except ytdlp.utils.DownloadError as exc:
             raise RuntimeError(self._friendly_error(str(exc), include_raw=True)) from exc
 
+        # Cancel is otherwise only checked in the download progress
+        # hook, so pressing Cancel during a slow metadata fetch did
+        # nothing until the fetch finished (up to ~20 s, longer with
+        # yt-dlp retries). The worker already surfaces this as
+        # "Download cancelled".
+        if self._cancel.is_set():
+            raise DownloadCancelled("Download cancelled.")
+
         # yt-dlp can return None for a URL whose extractor yields no
         # result; using it unguarded raised a raw AttributeError instead
         # of a clear message.
+        # See get_info above: honour Cancel during the metadata fetch.
+        if self._cancel.is_set():
+            raise DownloadCancelled("Download cancelled.")
+
         if not isinstance(info, dict):
             raise RuntimeError("Could not read video information for this URL.")
 
