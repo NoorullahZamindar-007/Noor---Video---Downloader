@@ -6,6 +6,14 @@ import requests
 import re
 import os
 
+from validators import host_resolves_to_non_public, validate_url
+
+
+# Instagram serves reel media from its own CDNs; a 2 GB cap keeps a
+# misdirected download from filling the disk.
+INSTAGRAM_MEDIA_HOSTS = (".cdninstagram.com", ".fbcdn.net")
+MAX_REEL_BYTES = 2 * 1024 * 1024 * 1024
+
 
 def _is_instagram_reel_url(url: str) -> bool:
     """Only Instagram reel links are fetchable here; anything else used to
@@ -44,6 +52,19 @@ def download_instagram_reel(url, output_text):
             video_url = json.loads(f'"{raw_url}"')
         except json.JSONDecodeError:
             video_url = raw_url.replace("\\u0026", "&")
+        # The extracted URL comes straight from page JSON: validate it
+        # like the main app validates thumbnails. A lookalike page
+        # could point it at a private/LAN address or an arbitrary host,
+        # and the body used to be written to disk unbounded.
+        video_host = (urlparse(video_url).hostname or "").lower()
+        if (
+            not validate_url(video_url)[0]
+            or not video_url.lower().startswith("https://")
+            or host_resolves_to_non_public(video_host)
+            or not video_host.endswith(INSTAGRAM_MEDIA_HOSTS)
+        ):
+            output_text.insert(tk.END, "❌ The video link in this page is not a valid Instagram media URL.\n")
+            return
         # Extract the reel shortcode robustly: url.split("/")[-2] breaks when
         # the URL has no trailing slash (".../reel/ABC123" -> "reel.mp4") and
         # keeps query strings that are illegal in filenames.
@@ -65,9 +86,13 @@ def download_instagram_reel(url, output_text):
         try:
             with requests.get(video_url, headers=headers, stream=True, timeout=15) as r:
                 r.raise_for_status()
+                written = 0
                 with open(file_name, "wb") as f:
                     for chunk in r.iter_content(chunk_size=8192):
                         if chunk:  # skip keep-alive chunks
+                            written += len(chunk)
+                            if written > MAX_REEL_BYTES:
+                                raise ValueError("Video is larger than 2 GB; download aborted.")
                             f.write(chunk)
         except Exception:
             try:
