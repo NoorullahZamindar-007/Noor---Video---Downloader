@@ -29,17 +29,37 @@ def _is_instagram_reel_url(url: str) -> bool:
 # ------------------ Functions ------------------
 def download_instagram_reel(url, output_text):
     output_text.delete("1.0", tk.END)
+    # A pasted URL with leading/trailing whitespace passed the
+    # reel check (it strips internally) but was then fetched
+    # unstripped, so requests failed on the whitespace instead of
+    # fetching the reel. Strip once, up front.
+    url = url.strip() if isinstance(url, str) else ""
     if not _is_instagram_reel_url(url):
         output_text.insert(tk.END, "❌ Enter a public Instagram reel URL (instagram.com/reel/...).\n")
         return
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-        response = requests.get(url, headers=headers, timeout=15)
-        if response.status_code != 200:
-            output_text.insert(tk.END, "❌ Failed to fetch URL. Make sure the link is public.\n")
-            return
-        
-        video_url_match = re.search(r'"playable_url":"([^"]+)"', response.text)
+        # Stream the page with a size cap: the old response.text read
+        # the whole body into memory, so a misdirected or bloated page
+        # ballooned RAM before the regex ever ran. Reel pages are a
+        # few MB at most, so 10 MB leaves ample headroom.
+        max_page_bytes = 10 * 1024 * 1024
+        chunks = []
+        total = 0
+        with requests.get(url, headers=headers, timeout=15, stream=True) as page:
+            if page.status_code != 200:
+                output_text.insert(tk.END, "❌ Failed to fetch URL. Make sure the link is public.\n")
+                return
+            for chunk in page.iter_content(chunk_size=65536):
+                if not chunk:
+                    continue
+                total += len(chunk)
+                if total > max_page_bytes:
+                    output_text.insert(tk.END, "❌ The page is too large to read.\n")
+                    return
+                chunks.append(chunk)
+        page_text = b"".join(chunks).decode("utf-8", errors="replace")
+        video_url_match = re.search(r'"playable_url":"([^"]+)"', page_text)
         if not video_url_match:
             output_text.insert(tk.END, "❌ Cannot find video URL. Possibly private or removed.\n")
             return
