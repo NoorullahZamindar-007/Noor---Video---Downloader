@@ -56,6 +56,11 @@ class VideoDownloader:
         ok, message = validate_url(url)
         if not ok:
             raise ValueError(message)
+        # A cancelled download leaves the flag set until the next
+        # download() call resets it; without this, fetching info after
+        # a cancelled download raised DownloadCancelled even though the
+        # user never cancelled the fetch.
+        self.reset()
         # Literal-host check passed, but the hostname may still resolve
         # to a private address (see host_resolves_to_non_public).
         if host_resolves_to_non_public(urlparse(url.strip()).hostname or ""):
