@@ -106,6 +106,13 @@ def download_instagram_reel(url, output_text):
         try:
             with requests.get(video_url, headers=headers, stream=True, timeout=15) as r:
                 r.raise_for_status()
+                # A 200 reply is not necessarily a video: an error page
+                # served as HTML used to be written to disk as a .mp4.
+                # Refuse a body whose Content-Type is present and not a
+                # video type; a missing header is still accepted.
+                content_type = (r.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+                if content_type and not content_type.startswith("video/"):
+                    raise ValueError("The media link did not return a video file.")
                 written = 0
                 with open(file_name, "wb") as f:
                     for chunk in r.iter_content(chunk_size=8192):
