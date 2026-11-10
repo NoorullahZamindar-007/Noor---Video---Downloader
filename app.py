@@ -47,6 +47,14 @@ class NoorVideoDownloaderApp(ctk.CTk):
         if saved_quality not in QUALITY_OPTIONS:
             saved_quality = QUALITY_OPTIONS[0]
         self.current_info: dict | None = None
+        # The URL current_info was fetched for: downloading a different
+        # URL without fetching its info first must not record the old
+        # video's title in the history (see _download).
+        self._info_url: str | None = None
+        # URL of the fetch currently in flight; copied to _info_url only
+        # when the info actually arrives, so a failed fetch cannot make
+        # _info_url point at a URL with no info behind it.
+        self._pending_info_url: str | None = None
         self.last_error_details = ""
         self.worker_running = False
         self.thumbnail_image = None
@@ -162,6 +170,8 @@ class NoorVideoDownloaderApp(ctk.CTk):
     def _clear_url(self) -> None:
         self.url_var.set("")
         self.current_info = None
+        self._info_url = None
+        self._pending_info_url = None
         self.platform_var.set("Platform: -")
         self.title_label.configure(text="Title: -")
         self.uploader_label.configure(text="Uploader: -")
@@ -189,6 +199,7 @@ class NoorVideoDownloaderApp(ctk.CTk):
         if not ok:
             self._show_error(message)
             return
+        self._pending_info_url = url
         self._run_worker("Fetching public metadata", lambda: self.downloader.get_info(url), "info")
 
     def _download(self) -> None:
@@ -202,6 +213,12 @@ class NoorVideoDownloaderApp(ctk.CTk):
                 return
             self.settings["permission_notice_seen"] = True
             self._save_settings()
+        # The preview may belong to an earlier URL: fetching info for A
+        # then downloading B without fetching B first used to record A's
+        # title in the history for B's file. Drop it so _add_history
+        # falls back to the downloaded filename instead.
+        if self._info_url != url:
+            self.current_info = None
         self._save_settings()
         quality = self.quality_var.get()
         if quality == "Audio only MP3" and not has_ffmpeg():
@@ -281,6 +298,7 @@ class NoorVideoDownloaderApp(ctk.CTk):
 
     def _show_info(self, info: dict) -> None:
         self.current_info = info
+        self._info_url = self._pending_info_url
         self.title_label.configure(text=f"Title: {info['title']}")
         self.uploader_label.configure(text=f"Uploader: {info.get('uploader') or 'Unknown'}")
         self.duration_label.configure(text=f"Duration: {format_duration(info.get('duration'))}")
