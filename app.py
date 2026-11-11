@@ -260,6 +260,7 @@ class NoorVideoDownloaderApp(ctk.CTk):
                 self.events.put(("error", (str(exc), details)))
 
         threading.Thread(target=wrapped, daemon=True).start()
+        return True
 
     def _progress(self, data: dict) -> None:
         self.events.put(("progress", data))
