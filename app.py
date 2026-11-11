@@ -199,8 +199,14 @@ class NoorVideoDownloaderApp(ctk.CTk):
         if not ok:
             self._show_error(message)
             return
-        self._pending_info_url = url
-        self._run_worker("Fetching public metadata", lambda: self.downloader.get_info(url), "info")
+        # Only record the pending URL when a worker actually starts: if
+        # another task is running, _run_worker refuses silently, and
+        # recording the new URL here would let the in-flight fetch's
+        # result get labelled with the wrong URL when it arrives.
+        if self._run_worker("Fetching public metadata", lambda: self.downloader.get_info(url), "info"):
+            self._pending_info_url = url
+        else:
+            self._pending_info_url = None
 
     def _download(self) -> None:
         url = self.url_var.get().strip()
@@ -234,10 +240,10 @@ class NoorVideoDownloaderApp(ctk.CTk):
         self.eta_var.set("ETA: -")
         self._run_worker("Starting download", lambda: self.downloader.download(url, folder, quality, self._progress), "done")
 
-    def _run_worker(self, start_message: str, work, done_kind: str) -> None:
+    def _run_worker(self, start_message: str, work, done_kind: str) -> bool:
         if self.worker_running:
             self._log("Another task is already running.")
-            return
+            return False
         self.worker_running = True
         self.download_button.configure(state="disabled")
         self.status_var.set(start_message)

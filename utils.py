@@ -57,7 +57,16 @@ def cleanup_partial_files(download_folder: str | Path, base_filename: str) -> No
     if not folder.exists():
         return
     safe_base = Path(base_filename).name
-    for path in folder.iterdir():
+    # Cleanup runs inside download error handlers: if the folder was
+    # deleted, replaced by a file, or lost permissions mid-download,
+    # iterdir() raises OSError and would mask the real download error.
+    # Best-effort only -- a failed cleanup must never hide the failure
+    # it is cleaning up after.
+    try:
+        entries = list(folder.iterdir())
+    except OSError:
+        return
+    for path in entries:
         if path.is_file() and path.name.startswith(safe_base) and _is_partial(path):
             try:
                 path.unlink()

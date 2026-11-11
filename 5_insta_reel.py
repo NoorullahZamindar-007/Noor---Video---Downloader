@@ -20,10 +20,15 @@ def _is_instagram_reel_url(url: str) -> bool:
     be fetched blindly and then fail with a confusing 'cannot find video
     URL' message (or fetch an arbitrary site the user pasted by mistake)."""
     try:
-        host = (urlparse(url.strip()).hostname or "").lower().removeprefix("www.").rstrip(".")
+        parsed = urlparse(url.strip())
+        host = (parsed.hostname or "").lower().removeprefix("www.").rstrip(".")
     except ValueError:
         return False
-    return host in {"instagram.com", "instagr.am"} and "/reel/" in urlparse(url.strip()).path
+    # A non-http(s) scheme (e.g. ftp://instagram.com/reel/...) passed
+    # the host/path checks and then failed inside requests with a
+    # confusing "No connection adapters" error instead of the clean
+    # "Enter a public Instagram reel URL" message.
+    return parsed.scheme in {"http", "https"} and host in {"instagram.com", "instagr.am"} and "/reel/" in parsed.path
 
 
 # ------------------ Functions ------------------
