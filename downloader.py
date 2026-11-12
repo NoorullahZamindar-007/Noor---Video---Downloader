@@ -204,6 +204,16 @@ class VideoDownloader:
         try:
             with ytdlp.YoutubeDL(options) as ydl:
                 downloaded_info = ydl.extract_info(url, download=True)
+            # Same None-result guard as the metadata fetch above: _final_path
+            # calls .get on this, so a None result escaped as a raw
+            # AttributeError after a "successful" download.
+            if not isinstance(downloaded_info, dict):
+                raise RuntimeError("Download finished but no video information was returned.")
+            # Inside the try on purpose: a download that "finished" but
+            # produced no findable file used to leave its .part files
+            # behind, because _final_path's RuntimeError escaped past
+            # the cleanup handlers below.
+            return self._final_path(downloaded_info, output_dir, base_filename, quality_label)
         except DownloadCancelled:
             cleanup_partial_files(output_dir, base_filename)
             raise
@@ -213,14 +223,6 @@ class VideoDownloader:
         except Exception:
             cleanup_partial_files(output_dir, base_filename)
             raise
-
-        # Same None-result guard as the metadata fetch above: _final_path
-        # calls .get on this, so a None result escaped as a raw
-        # AttributeError after a "successful" download.
-        if not isinstance(downloaded_info, dict):
-            raise RuntimeError("Download finished but no video information was returned.")
-
-        return self._final_path(downloaded_info, output_dir, base_filename, quality_label)
 
     @staticmethod
     def _yt_dlp():
