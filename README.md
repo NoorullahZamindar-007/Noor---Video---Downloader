@@ -67,7 +67,7 @@ This project uses:
 ## Project Structure
 
 ```text
-Download-Instagram-reel-python/
+Noor---Video---Downloader/
   app.py              Desktop GUI, tabs, worker threads, user actions
   downloader.py       yt-dlp metadata/download logic and friendly errors
   validators.py       URL validation and platform detection
@@ -75,7 +75,7 @@ Download-Instagram-reel-python/
   utils.py            Filenames, JSON settings, folders, formatting, cleanup
   requirements.txt    Python dependencies
   README.md           Project documentation
-  LICENSE             License file
+  LICENSE.txt         License file
   5_insta_reel.py     Original prototype script
 ```
 
@@ -84,7 +84,7 @@ Download-Instagram-reel-python/
 Open PowerShell in the project folder:
 
 ```powershell
-cd "D:\Projcets\Done Projects\Download-Instagram-reel-python"
+cd "D:\Projcets\Done Projects\Noor---Video---Downloader"
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt

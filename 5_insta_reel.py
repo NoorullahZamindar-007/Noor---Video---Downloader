@@ -6,6 +6,8 @@ import requests
 import re
 import os
 
+from config import DEFAULT_DOWNLOAD_DIR
+from utils import ensure_folder
 from validators import host_resolves_to_non_public, validate_url
 
 
@@ -98,12 +100,17 @@ def download_instagram_reel(url, output_text):
             output_text.insert(tk.END, "❌ Could not parse a reel ID from the URL.\n")
             return
         base_name = re.sub(r"[^A-Za-z0-9_-]", "_", shortcode_match.group(1))
+        # Save next to the main app's downloads, not in whatever folder
+        # the process happened to launch from — a bare relative name
+        # used to land the reel in the repo folder or a terminal's CWD
+        # where it was easy to lose.
+        output_dir = ensure_folder(DEFAULT_DOWNLOAD_DIR)
         # Never silently overwrite a previous download with the same name.
-        file_name = base_name + ".mp4"
+        file_name = str(output_dir / (base_name + ".mp4"))
         counter = 1
         while os.path.exists(file_name):
             counter += 1
-            file_name = f"{base_name} ({counter}).mp4"
+            file_name = str(output_dir / f"{base_name} ({counter}).mp4")
 
         # Download video; a failure mid-stream used to leave a corrupt
         # partial .mp4 behind that looked like a finished download (and
@@ -132,7 +139,7 @@ def download_instagram_reel(url, output_text):
             except OSError:
                 pass
             raise
-        output_text.insert(tk.END, f"✅ Reel downloaded as {file_name}\n")
+        output_text.insert(tk.END, f"✅ Reel downloaded to {file_name}\n")
         
     except Exception as e:
         output_text.insert(tk.END, f"❌ Error: {e}\n")
