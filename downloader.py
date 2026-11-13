@@ -78,6 +78,12 @@ class VideoDownloader:
                 info = ydl.extract_info(url, download=False)
         except ytdlp.utils.DownloadError as exc:
             raise RuntimeError(self._friendly_error(str(exc), include_raw=True)) from exc
+        except Exception as exc:
+            # yt-dlp wraps most failures in DownloadError, but a raw
+            # exception (a socket timeout, an extractor bug) used to
+            # escape with no context — the UI showed e.g. bare "timed
+            # out". Say what was being done instead.
+            raise RuntimeError("Could not read video information for this URL.") from exc
 
         # Cancel is otherwise only checked in the download progress
         # hook, so pressing Cancel during a slow metadata fetch did
@@ -138,6 +144,12 @@ class VideoDownloader:
                 info = ydl.extract_info(url, download=False)
         except ytdlp.utils.DownloadError as exc:
             raise RuntimeError(self._friendly_error(str(exc), include_raw=True)) from exc
+        except Exception as exc:
+            # yt-dlp wraps most failures in DownloadError, but a raw
+            # exception (a socket timeout, an extractor bug) used to
+            # escape with no context — the UI showed e.g. bare "timed
+            # out". Say what was being done instead.
+            raise RuntimeError("Could not read video information for this URL.") from exc
 
         # Same as get_info: Cancel is otherwise only checked in the
         # download progress hook, so pressing Cancel during a slow
