@@ -39,25 +39,42 @@ def _is_non_public_host(host: str) -> bool:
     )
 
 
-def host_resolves_to_non_public(host: str) -> bool:
-    """True if the host resolves to any non-public address, or cannot be resolved.
+def resolve_host_status(host: str) -> str:
+    """One of "public", "non-public", or "unresolvable".
 
     validate_url() only inspects the literal host string, so a
     public-looking hostname whose DNS points at 127.0.0.1 (or any private
     range — attacker-controlled DNS / DNS rebinding) would sail through
-    it and reach yt-dlp. Call this from the download/info paths only —
-    NOT from validate_url(), which runs on every keystroke in the URL box.
+    it and reach yt-dlp. A host that fails to resolve at all is a third
+    case, not a private one: it used to be lumped in with private hosts
+    and reported as "Local or private URLs are not supported", which
+    sent users looking for a local-network problem when the host simply
+    did not exist (a typo, or no internet connection).
+
+    Call this from the download/info paths only — NOT from
+    validate_url(), which runs on every keystroke in the URL box.
     """
     import socket
 
     try:
         infos = socket.getaddrinfo(host, None)
     except socket.gaierror:
-        return True
+        return "unresolvable"
     for _family, _type, _proto, _canon, sockaddr in infos:
         if _is_non_public_host(sockaddr[0]):
-            return True
-    return False
+            return "non-public"
+    return "public"
+
+
+def host_resolves_to_non_public(host: str) -> bool:
+    """True if the host resolves to any non-public address, or cannot be resolved.
+
+    Kept for callers that only need a yes/no (thumbnail fetch, reel
+    media check): an unresolvable host is still refused there, it is
+    just reported differently by the download/info paths, which use
+    resolve_host_status() directly.
+    """
+    return resolve_host_status(host) != "public"
 
 
 def validate_url(url: str) -> tuple[bool, str]:

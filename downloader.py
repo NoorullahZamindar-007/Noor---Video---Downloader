@@ -18,7 +18,7 @@ from utils import (
 )
 from urllib.parse import urlparse
 
-from validators import detect_platform, host_resolves_to_non_public, validate_url
+from validators import detect_platform, resolve_host_status, validate_url
 
 
 class DownloadCancelled(Exception):
@@ -62,8 +62,14 @@ class VideoDownloader:
         # user never cancelled the fetch.
         self.reset()
         # Literal-host check passed, but the hostname may still resolve
-        # to a private address (see host_resolves_to_non_public).
-        if host_resolves_to_non_public(urlparse(url.strip()).hostname or ""):
+        # to a private address (see resolve_host_status) — or fail to
+        # resolve at all. A DNS failure used to be reported as "Local
+        # or private URLs are not supported", which sent users looking
+        # for a local-network problem when the host simply did not exist.
+        host_status = resolve_host_status(urlparse(url.strip()).hostname or "")
+        if host_status == "unresolvable":
+            raise ValueError("Could not resolve the host name. Check the URL and your internet connection.")
+        if host_status == "non-public":
             raise ValueError("Local or private URLs are not supported.")
 
         ytdlp = self._yt_dlp()
@@ -112,8 +118,12 @@ class VideoDownloader:
             )
 
         # Literal-host check passed, but the hostname may still resolve
-        # to a private address (see host_resolves_to_non_public).
-        if host_resolves_to_non_public(urlparse(url.strip()).hostname or ""):
+        # to a private address (see resolve_host_status) — or fail to
+        # resolve at all (same misreported-as-private case as get_info).
+        host_status = resolve_host_status(urlparse(url.strip()).hostname or "")
+        if host_status == "unresolvable":
+            raise ValueError("Could not resolve the host name. Check the URL and your internet connection.")
+        if host_status == "non-public":
             raise ValueError("Local or private URLs are not supported.")
 
         ytdlp = self._yt_dlp()

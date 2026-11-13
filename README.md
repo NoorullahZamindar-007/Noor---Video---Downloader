@@ -236,6 +236,10 @@ Audio-only MP3 needs FFmpeg. Install FFmpeg or choose a video quality instead.
 
 The app will not bypass restrictions. Use a public URL for content you own or have permission to download.
 
+### `Could not resolve the host name`
+
+The link's host name did not resolve — usually a typo in the URL, or no internet connection. Check the URL and your connection, then try again.
+
 ### `Unsupported URL`
 
 The platform or URL format may not be supported by yt-dlp. Update yt-dlp:

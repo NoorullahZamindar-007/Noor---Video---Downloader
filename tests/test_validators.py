@@ -9,7 +9,12 @@ import socket
 
 import pytest
 
-from validators import detect_platform, host_resolves_to_non_public, validate_url
+from validators import (
+    detect_platform,
+    host_resolves_to_non_public,
+    resolve_host_status,
+    validate_url,
+)
 
 
 @pytest.mark.parametrize(
@@ -92,3 +97,34 @@ def test_host_resolves_to_non_public_when_dns_fails(monkeypatch):
 
     monkeypatch.setattr(socket, "getaddrinfo", _boom)
     assert host_resolves_to_non_public("nonexistent.invalid") is True
+
+
+def test_resolve_host_status_public_when_dns_points_public(monkeypatch):
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda host, port: [(socket.AF_INET, 0, 0, "", ("93.184.216.34", 0))],
+    )
+    assert resolve_host_status("example.com") == "public"
+
+
+def test_resolve_host_status_non_public_when_dns_points_private(monkeypatch):
+    # A public-looking hostname whose DNS points at 127.0.0.1 must be
+    # reported as non-public, not as unresolvable.
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda host, port: [(socket.AF_INET, 0, 0, "", ("127.0.0.1", 0))],
+    )
+    assert resolve_host_status("example.com") == "non-public"
+
+
+def test_resolve_host_status_unresolvable_when_dns_fails(monkeypatch):
+    # A host that fails to resolve is a third case, not a private one:
+    # it used to be lumped in with private hosts and misreported as
+    # "Local or private URLs are not supported".
+    def _boom(host, port):
+        raise socket.gaierror("Name or service not known")
+
+    monkeypatch.setattr(socket, "getaddrinfo", _boom)
+    assert resolve_host_status("nonexistent.invalid") == "unresolvable"
