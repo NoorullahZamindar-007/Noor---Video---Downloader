@@ -189,10 +189,21 @@ def find_tool(name: str) -> str | None:
     if found:
         return found
 
+    # The WinGet Links/Packages scan below is Windows-only. On other
+    # systems LOCALAPPDATA is unset, so Path("") resolved to the working
+    # directory and the recursive glob walked the whole folder tree
+    # looking for "<name>.exe" on every ffmpeg check (startup, each
+    # download, each audio-quality check) -- slow, and pointless outside
+    # Windows, where no .exe would ever be a usable ffmpeg anyway.
+    if os.name != "nt":
+        return None
+    local_app_data = os.getenv("LOCALAPPDATA") or ""
+    if not local_app_data:
+        return None
     exe = f"{name}.exe"
     roots = [
-        Path(os.getenv("LOCALAPPDATA") or "") / "Microsoft" / "WinGet" / "Links",
-        Path(os.getenv("LOCALAPPDATA") or "") / "Microsoft" / "WinGet" / "Packages",
+        Path(local_app_data) / "Microsoft" / "WinGet" / "Links",
+        Path(local_app_data) / "Microsoft" / "WinGet" / "Packages",
     ]
     for root in roots:
         if not root.exists():

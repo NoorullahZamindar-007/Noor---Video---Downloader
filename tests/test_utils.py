@@ -9,6 +9,7 @@ from utils import (
     cleanup_partial_files,
     coerce_dict,
     coerce_list,
+    find_tool,
     format_bytes,
     format_duration,
     format_eta,
@@ -103,3 +104,72 @@ def test_get_unique_output_template_avoids_existing_files(tmp_path):
 
     assert base == "My Video [best] (1)"
     assert template.endswith("My Video [best] (1).%(ext)s")
+
+
+def test_find_tool_skips_winget_scan_off_windows(monkeypatch):
+    import os
+    import pathlib
+
+    import utils
+
+    # The WinGet Links/Packages scan is Windows-only: with LOCALAPPDATA
+    # unset, Path("") used to resolve to the working directory and the
+    # recursive glob walked the whole tree looking for "<name>.exe".
+    monkeypatch.setattr(os, "name", "posix")
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.setattr(utils, "which", lambda name: None)
+
+    def _forbidden_glob(self, pattern):
+        raise AssertionError("WinGet glob must not run off Windows")
+
+    monkeypatch.setattr(pathlib.Path, "glob", _forbidden_glob)
+    assert find_tool("definitely-not-a-tool-xyz") is None
+
+
+def test_find_tool_finds_winget_link_on_windows(monkeypatch, tmp_path):
+    import os
+
+    import utils
+
+    # Patch os inside utils only: patching the real os.name to "nt" would
+    # also flip pathlib.Path to WindowsPath, which cannot instantiate on
+    # a POSIX test runner. The stub delegates everything except the name.
+    class _FakeOs:
+        def __init__(self, name):
+            self.name = name
+
+        def __getattr__(self, attr):
+            return getattr(os, attr)
+
+    monkeypatch.setattr(utils, "os", _FakeOs("nt"))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setattr(utils, "which", lambda name: None)
+    links = tmp_path / "Microsoft" / "WinGet" / "Links"
+    links.mkdir(parents=True)
+    target = links / "ffmpeg.exe"
+    target.write_text("fake")
+    assert find_tool("ffmpeg") == str(target)
+
+
+def test_find_tool_returns_none_on_windows_without_localappdata(monkeypatch):
+    import os
+    import pathlib
+
+    import utils
+
+    class _FakeOs:
+        def __init__(self, name):
+            self.name = name
+
+        def __getattr__(self, attr):
+            return getattr(os, attr)
+
+    monkeypatch.setattr(utils, "os", _FakeOs("nt"))
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.setattr(utils, "which", lambda name: None)
+
+    def _forbidden_glob(self, pattern):
+        raise AssertionError("glob must not run without LOCALAPPDATA")
+
+    monkeypatch.setattr(pathlib.Path, "glob", _forbidden_glob)
+    assert find_tool("ffmpeg") is None
