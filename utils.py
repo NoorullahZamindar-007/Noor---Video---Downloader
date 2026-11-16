@@ -211,7 +211,7 @@ def find_tool(name: str) -> str | None:
         direct = root / exe
         if direct.exists():
             return str(direct)
-        # ponytail: winget package scan only; add a user setting if portable tool paths matter later.
+        # WinGet package scan only; add a user setting if portable tool paths matter later.
         for match in root.glob(f"**/{exe}"):
             return str(match)
     return None

@@ -40,6 +40,26 @@ def has_ffmpeg() -> bool:
     return check_ffmpeg_installed()
 
 
+def _check_public_host(url: str) -> None:
+    """Reject hosts that resolve to a private address, or not at all.
+
+    validate_url() only inspects the literal host string, so a
+    public-looking hostname whose DNS points at 127.0.0.1 (or any
+    private range -- attacker-controlled DNS / DNS rebinding) would sail
+    through it and reach yt-dlp. A DNS failure is a third case, not a
+    private one: it used to be reported as "Local or private URLs are
+    not supported", which sent users looking for a local-network
+    problem when the host simply did not exist (a typo, or no internet
+    connection). Shared by get_info() and download() so the two paths
+    cannot drift apart.
+    """
+    host_status = resolve_host_status(urlparse(url.strip()).hostname or "")
+    if host_status == "unresolvable":
+        raise ValueError("Could not resolve the host name. Check the URL and your internet connection.")
+    if host_status == "non-public":
+        raise ValueError("Local or private URLs are not supported.")
+
+
 class VideoDownloader:
     def __init__(self) -> None:
         self._cancel = threading.Event()
@@ -61,16 +81,7 @@ class VideoDownloader:
         # a cancelled download raised DownloadCancelled even though the
         # user never cancelled the fetch.
         self.reset()
-        # Literal-host check passed, but the hostname may still resolve
-        # to a private address (see resolve_host_status) — or fail to
-        # resolve at all. A DNS failure used to be reported as "Local
-        # or private URLs are not supported", which sent users looking
-        # for a local-network problem when the host simply did not exist.
-        host_status = resolve_host_status(urlparse(url.strip()).hostname or "")
-        if host_status == "unresolvable":
-            raise ValueError("Could not resolve the host name. Check the URL and your internet connection.")
-        if host_status == "non-public":
-            raise ValueError("Local or private URLs are not supported.")
+        _check_public_host(url)
 
         ytdlp = self._yt_dlp()
         try:
@@ -123,14 +134,7 @@ class VideoDownloader:
                 f"Choose one of: {', '.join(QUALITY_FORMATS)}."
             )
 
-        # Literal-host check passed, but the hostname may still resolve
-        # to a private address (see resolve_host_status) — or fail to
-        # resolve at all (same misreported-as-private case as get_info).
-        host_status = resolve_host_status(urlparse(url.strip()).hostname or "")
-        if host_status == "unresolvable":
-            raise ValueError("Could not resolve the host name. Check the URL and your internet connection.")
-        if host_status == "non-public":
-            raise ValueError("Local or private URLs are not supported.")
+        _check_public_host(url)
 
         ytdlp = self._yt_dlp()
         self.reset()
