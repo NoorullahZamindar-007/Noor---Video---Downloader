@@ -30,7 +30,16 @@ def _is_instagram_reel_url(url: str) -> bool:
     # the host/path checks and then failed inside requests with a
     # confusing "No connection adapters" error instead of the clean
     # "Enter a public Instagram reel URL" message.
-    return parsed.scheme in {"http", "https"} and host in {"instagram.com", "instagr.am"} and "/reel/" in parsed.path
+    # Mobile-web links use subdomains such as m.instagram.com; accept any
+    # Instagram subdomain, not just the bare host and www.
+    return (
+        parsed.scheme in {"http", "https"}
+        and (
+            host in {"instagram.com", "instagr.am"}
+            or host.endswith((".instagram.com", ".instagr.am"))
+        )
+        and "/reel/" in parsed.path
+    )
 
 
 # ------------------ Functions ------------------
