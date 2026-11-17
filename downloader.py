@@ -15,6 +15,7 @@ from utils import (
     find_tool,
     get_quality_label,
     get_unique_output_template,
+    is_partial_file,
 )
 from urllib.parse import urlparse
 
@@ -311,10 +312,13 @@ class VideoDownloader:
             # to the "output file could not be found" error below instead
             # of escaping as a raw FileNotFoundError.
             entries = []
+        # Use the shared partial-file check, not an inline substring
+        # test: the old ".part"/".ytdl" check let a leftover .temp
+        # or .tmp sidecar through as the finished download.
         matches = [
             path
             for path in entries
-            if path.is_file() and path.name.startswith(prefix) and ".part" not in path.name.lower() and ".ytdl" not in path.name.lower()
+            if path.is_file() and path.name.startswith(prefix) and not is_partial_file(path)
         ]
         if matches:
             # Alphabetical order used to win here, so a sidecar file

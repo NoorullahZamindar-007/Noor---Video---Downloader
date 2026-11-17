@@ -149,3 +149,24 @@ def test_download_wraps_unexpected_metadata_error(monkeypatch, tmp_path):
             "Best video",
             progress=lambda status: None,
         )
+
+
+def test_final_path_ignores_temp_sidecar(tmp_path):
+    # _final_path used its own inline ".part"/".ytdl" substring check, so
+    # a leftover .temp file (which the shared partial check treats as
+    # partial) was returned as the finished download.
+    (tmp_path / "Test Video [best].mp4.temp").write_text("temp")
+
+    with pytest.raises(RuntimeError, match="could not be found"):
+        VideoDownloader._final_path({}, tmp_path, "Test Video [best]", "best")
+
+
+def test_final_path_prefers_finished_file_over_temp_sidecar(tmp_path):
+    (tmp_path / "Test Video [best].mp4.temp").write_text("temp")
+    finished = tmp_path / "Test Video [best].mp4"
+    finished.write_text("finished")
+
+    assert (
+        VideoDownloader._final_path({}, tmp_path, "Test Video [best]", "best")
+        == finished
+    )

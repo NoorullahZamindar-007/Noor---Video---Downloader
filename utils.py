@@ -67,7 +67,7 @@ def cleanup_partial_files(download_folder: str | Path, base_filename: str) -> No
     except OSError:
         return
     for path in entries:
-        if path.is_file() and path.name.startswith(safe_base) and _is_partial(path):
+        if path.is_file() and path.name.startswith(safe_base) and is_partial_file(path):
             try:
                 path.unlink()
             except OSError:
@@ -81,12 +81,12 @@ def check_ffmpeg_installed() -> bool:
 def _has_final_file(folder: Path, base_filename: str) -> bool:
     prefix = f"{base_filename}."
     for path in folder.iterdir():
-        if path.is_file() and path.name.startswith(prefix) and not _is_partial(path):
+        if path.is_file() and path.name.startswith(prefix) and not is_partial_file(path):
             return True
     return False
 
 
-def _is_partial(path: Path) -> bool:
+def is_partial_file(path: Path) -> bool:
     name = path.name.lower()
     return path.suffix.lower() in _PARTIAL_SUFFIXES or ".part" in name or ".ytdl" in name
 

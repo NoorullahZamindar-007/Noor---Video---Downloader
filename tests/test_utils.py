@@ -5,6 +5,8 @@ These were previously only covered by `__main__` assert blocks that run
 only when the file is executed directly, never in CI or via pytest.
 """
 
+import pytest
+
 from utils import (
     cleanup_partial_files,
     coerce_dict,
@@ -15,6 +17,7 @@ from utils import (
     format_eta,
     get_quality_label,
     get_unique_output_template,
+    is_partial_file,
     read_json,
     sanitize_filename,
     write_json,
@@ -76,6 +79,24 @@ def test_write_json_round_trips_and_leaves_no_temp_files(tmp_path):
         f.name for f in target.parent.iterdir() if f.name.startswith(".settings.json.")
     ]
     assert not leftovers
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("video.mp4.part", True),
+        ("video.mp4.ytdl", True),
+        ("video.mp4.temp", True),
+        ("video.mp4.tmp", True),
+        ("video.mp4.part-Frag0", True),
+        ("video.mp4", False),
+        ("video.mp3", False),
+    ],
+)
+def test_is_partial_file(name, expected):
+    from pathlib import Path
+
+    assert is_partial_file(Path(name)) == expected
 
 
 def test_cleanup_partial_files_removes_partials_only(tmp_path):
