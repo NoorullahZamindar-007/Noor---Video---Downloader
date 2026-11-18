@@ -170,3 +170,17 @@ def test_final_path_prefers_finished_file_over_temp_sidecar(tmp_path):
         VideoDownloader._final_path({}, tmp_path, "Test Video [best]", "best")
         == finished
     )
+
+
+def test_final_path_finds_finished_file_with_part_in_title(tmp_path):
+    # A finished file whose title contains ".part" ("S01E01.part1")
+    # used to be flagged as a partial by the substring check in
+    # is_partial_file, so _final_path reported a successful download
+    # as missing even though the file was right there.
+    finished = tmp_path / "S01E01.part1 [best].mp4"
+    finished.write_text("finished")
+
+    assert (
+        VideoDownloader._final_path({}, tmp_path, "S01E01.part1 [best]", "best")
+        == finished
+    )

@@ -89,8 +89,15 @@ def test_write_json_round_trips_and_leaves_no_temp_files(tmp_path):
         ("video.mp4.temp", True),
         ("video.mp4.tmp", True),
         ("video.mp4.part-Frag0", True),
+        ("video.mp4.part-Frag12", True),
         ("video.mp4", False),
         ("video.mp3", False),
+        # A finished file whose title contains ".part" is not a partial:
+        # the old ".part" substring check flagged these, so _final_path
+        # reported a successful download as missing.
+        ("S01E01.part1 [best].mp4", False),
+        ("My Video.part2 [720p].mp4", False),
+        ("video.ytdl.mp4", False),
     ],
 )
 def test_is_partial_file(name, expected):

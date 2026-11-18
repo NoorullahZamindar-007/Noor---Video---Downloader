@@ -12,6 +12,16 @@ from typing import Any
 
 _PARTIAL_SUFFIXES = (".part", ".ytdl", ".temp", ".tmp")
 
+# yt-dlp names DASH fragment partials "video.mp4.part-Frag0", whose
+# suffix is "-Frag0" rather than ".part", so a suffix check alone misses
+# them. But a bare ".part" substring also flags finished files whose
+# title contains ".part" ("S01E01.part1.mp4") as partials, so _final_path
+# reported a successful download as missing and cleanup could delete a
+# finished file. Match ".part" only at the end of the name or before a
+# "-FragN" fragment suffix; ".ytdl" sidecars always end in ".ytdl", so
+# the suffix check covers them without a substring test.
+_PARTIAL_FRAGMENT_RE = re.compile(r"\.part(-frag\d*)?$")
+
 
 def sanitize_filename(title: str, fallback: str = "download") -> str:
     # yt-dlp metadata is not guaranteed clean: a missing title is
@@ -88,7 +98,9 @@ def _has_final_file(folder: Path, base_filename: str) -> bool:
 
 def is_partial_file(path: Path) -> bool:
     name = path.name.lower()
-    return path.suffix.lower() in _PARTIAL_SUFFIXES or ".part" in name or ".ytdl" in name
+    if path.suffix.lower() in _PARTIAL_SUFFIXES:
+        return True
+    return bool(_PARTIAL_FRAGMENT_RE.search(name))
 
 
 def ensure_folder(path: str | Path) -> Path:
