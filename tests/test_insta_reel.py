@@ -53,3 +53,28 @@ def test_accepts_instagram_reel_urls(url):
 )
 def test_rejects_non_reel_urls(url):
     assert _is_instagram_reel_url(url) is False
+
+
+def test_extract_playable_url_decodes_escapes():
+    # Instagram's page JSON escapes forward slashes and & as \/ and
+    # \u0026; both must come back as plain characters in the media URL.
+    page = r'{"playable_url":"https:\/\/scontent.cdninstagram.com\/v\/abc.mp4?x=1\u0026y=2"}'
+    assert (
+        reel._extract_playable_url(page)
+        == "https://scontent.cdninstagram.com/v/abc.mp4?x=1&y=2"
+    )
+
+
+def test_extract_playable_url_keeps_escaped_quote_in_url():
+    # An escaped quote inside the JSON string used to end the old [^"]+
+    # match early, truncating the URL so it failed the media-host check.
+    page = r'{"playable_url":"https://scontent.cdninstagram.com/v/a.mp4?x=1\"y=2"}'
+    assert (
+        reel._extract_playable_url(page)
+        == 'https://scontent.cdninstagram.com/v/a.mp4?x=1"y=2'
+    )
+
+
+def test_extract_playable_url_returns_none_without_match():
+    assert reel._extract_playable_url('{"no_video_here":true}') is None
+    assert reel._extract_playable_url("") is None

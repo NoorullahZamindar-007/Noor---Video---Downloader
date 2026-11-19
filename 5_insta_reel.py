@@ -42,6 +42,24 @@ def _is_instagram_reel_url(url: str) -> bool:
     )
 
 
+def _extract_playable_url(page_text: str) -> str | None:
+    """Pull the reel's playable_url out of the page JSON, or None.
+
+    The value is a JSON string literal, so it can contain escaped
+    quotes and slashes (\\" \\/ \\u0026): the old [^"]+ pattern stopped
+    at the first escaped quote and truncated the URL, which then failed
+    the media-host check. Match escape sequences as units, then decode
+    them like JSON does.
+    """
+    match = re.search(r'"playable_url":"((?:\\.|[^"\\])*)"', page_text)
+    if not match:
+        return None
+    try:
+        return json.loads(f'"{match.group(1)}"')
+    except json.JSONDecodeError:
+        return match.group(1).replace("\\u0026", "&")
+
+
 # ------------------ Functions ------------------
 def download_instagram_reel(url, output_text):
     output_text.delete("1.0", tk.END)
@@ -75,19 +93,10 @@ def download_instagram_reel(url, output_text):
                     return
                 chunks.append(chunk)
         page_text = b"".join(chunks).decode("utf-8", errors="replace")
-        video_url_match = re.search(r'"playable_url":"([^"]+)"', page_text)
-        if not video_url_match:
+        video_url = _extract_playable_url(page_text)
+        if not video_url:
             output_text.insert(tk.END, "❌ Cannot find video URL. Possibly private or removed.\n")
             return
-        
-        # The match is a JSON string literal, so decode every escape properly
-        # (e.g. \u0026 and \/); a plain replace only handled one case and
-        # left mangled URLs when the page escaped forward slashes.
-        raw_url = video_url_match.group(1)
-        try:
-            video_url = json.loads(f'"{raw_url}"')
-        except json.JSONDecodeError:
-            video_url = raw_url.replace("\\u0026", "&")
         # The extracted URL comes straight from page JSON: validate it
         # like the main app validates thumbnails. A lookalike page
         # could point it at a private/LAN address or an arbitrary host,
