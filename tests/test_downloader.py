@@ -211,3 +211,76 @@ def test_simple_formats_returns_empty_for_non_list_formats():
     assert VideoDownloader._simple_formats({"formats": "not-a-list"}) == []
     assert VideoDownloader._simple_formats({"formats": {"height": 720}}) == []
     assert VideoDownloader._simple_formats({}) == []
+
+
+class _FakeYoutubeDLHookProgress:
+    """yt-dlp stand-in that fires the progress hook with downloaded
+    bytes past the reported total, then produces the finished file."""
+
+    def __init__(self, options, output_dir, seen):
+        self.options = options
+        self.output_dir = output_dir
+        self.seen = seen
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def extract_info(self, url, download=False):
+        if not download:
+            return {"title": "Test Video"}
+        for hook in self.options.get("progress_hooks") or []:
+            hook(
+                {
+                    "status": "downloading",
+                    "downloaded_bytes": 1500,
+                    "total_bytes": 1000,
+                    "speed": 10,
+                    "eta": 5,
+                }
+            )
+            hook(
+                {
+                    "status": "finished",
+                    "filename": str(self.output_dir / "Test Video [best].mp4"),
+                }
+            )
+        finished = self.output_dir / "Test Video [best].mp4"
+        finished.write_text("finished")
+        return {"filepath": str(finished)}
+
+
+def test_download_progress_percent_never_exceeds_one(monkeypatch, tmp_path):
+    # total_bytes_estimate is rough: downloaded can pass it near the end
+    # of a file, so the raw ratio used to exceed 1 and the bar showed
+    # over 100%. The hook must clamp at the source.
+    seen: list[dict] = []
+
+    def _fake(options):
+        return _FakeYoutubeDLHookProgress(options, tmp_path, seen)
+
+    monkeypatch.setattr(
+        VideoDownloader,
+        "_yt_dlp",
+        staticmethod(
+            lambda: SimpleNamespace(
+                YoutubeDL=_fake, utils=SimpleNamespace(DownloadError=_FakeDownloadError)
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        downloader_module, "resolve_host_status", lambda host: "public"
+    )
+
+    result = VideoDownloader().download(
+        "https://www.youtube.com/watch?v=abc",
+        tmp_path,
+        "Best video",
+        progress=lambda status: seen.append(status),
+    )
+
+    assert result == tmp_path / "Test Video [best].mp4"
+    downloading = [s for s in seen if s["text"].startswith("Downloading")]
+    assert downloading and downloading[0]["percent"] == 1.0

@@ -180,9 +180,20 @@ class VideoDownloader:
             if status.get("status") == "downloading":
                 total = status.get("total_bytes") or status.get("total_bytes_estimate")
                 downloaded = status.get("downloaded_bytes") or 0
+                # total_bytes_estimate is rough: downloaded can pass it
+                # near the end of a file, so the raw ratio can exceed 1
+                # and the bar (or any other progress consumer) would show
+                # over 100%. Clamp at the source; a non-numeric payload
+                # reports no percent instead of crashing the hook.
+                try:
+                    percent = downloaded / total if total else None
+                except (TypeError, ValueError):
+                    percent = None
+                if percent is not None:
+                    percent = max(0.0, min(1.0, percent))
                 progress(
                     {
-                        "percent": downloaded / total if total else None,
+                        "percent": percent,
                         "speed": status.get("speed"),
                         "eta": status.get("eta"),
                         "text": f"Downloading {quality_label}",
