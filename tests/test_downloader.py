@@ -184,3 +184,30 @@ def test_final_path_finds_finished_file_with_part_in_title(tmp_path):
         VideoDownloader._final_path({}, tmp_path, "S01E01.part1 [best]", "best")
         == finished
     )
+
+
+def test_simple_formats_ignores_malformed_format_entries():
+    # yt-dlp metadata is not guaranteed clean: a non-dict entry in the
+    # formats list used to crash _simple_formats on .get, so the whole
+    # info fetch failed instead of showing the usable qualities.
+    labels = VideoDownloader._simple_formats(
+        {
+            "formats": [
+                {"height": 720, "ext": "mp4", "vcodec": "avc1", "acodec": "mp4a"},
+                "junk",
+                None,
+                42,
+                {"height": 480, "ext": "webm", "vcodec": "vp9", "acodec": "opus"},
+            ]
+        }
+    )
+
+    assert labels == ["720p mp4", "480p webm"]
+
+
+def test_simple_formats_returns_empty_for_non_list_formats():
+    # A non-list "formats" value (a dict, a string) used to crash the
+    # same loop; an empty quality list is the right fallback.
+    assert VideoDownloader._simple_formats({"formats": "not-a-list"}) == []
+    assert VideoDownloader._simple_formats({"formats": {"height": 720}}) == []
+    assert VideoDownloader._simple_formats({}) == []

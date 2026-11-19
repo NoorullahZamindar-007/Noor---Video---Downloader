@@ -274,7 +274,15 @@ class VideoDownloader:
     def _simple_formats(info: dict) -> list[str]:
         labels: list[str] = []
         seen: set[str] = set()
-        for item in info.get("formats") or []:
+        formats = info.get("formats")
+        # yt-dlp metadata is not guaranteed clean: "formats" can be a
+        # non-list value, or hold non-dict entries, and either used to
+        # crash here on .get instead of showing an empty quality list.
+        if not isinstance(formats, list):
+            return []
+        for item in formats:
+            if not isinstance(item, dict):
+                continue
             height = item.get("height")
             # yt-dlp does not guarantee "ext" on every format; a missing
             # extension previously produced labels like "720p None".
