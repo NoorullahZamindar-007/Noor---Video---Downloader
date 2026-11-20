@@ -311,13 +311,19 @@ class VideoDownloader:
     @staticmethod
     def _final_path(info: dict, output_dir: Path, base_filename: str, quality_label: str) -> Path:
         for item in info.get("requested_downloads") or []:
+            # yt-dlp's info dict is untrusted input here: a malformed
+            # entry (a string instead of a dict, a non-string filepath)
+            # used to crash this lookup with AttributeError/TypeError
+            # even though the download itself had succeeded.
+            if not isinstance(item, dict):
+                continue
             path = item.get("filepath")
-            if path:
+            if isinstance(path, str) and path:
                 candidate = Path(path)
                 if candidate.exists():
                     return candidate
         path = info.get("filepath")
-        if path and Path(path).exists():
+        if isinstance(path, str) and path and Path(path).exists():
             return Path(path)
         if quality_label == "audio-mp3":
             mp3 = output_dir / f"{base_filename}.mp3"

@@ -186,6 +186,29 @@ def test_final_path_finds_finished_file_with_part_in_title(tmp_path):
     )
 
 
+def test_final_path_ignores_malformed_requested_downloads(tmp_path):
+    # A malformed requested_downloads entry (a string instead of a dict,
+    # a non-string filepath) used to crash _final_path with
+    # AttributeError/TypeError even though the download had succeeded.
+    finished = tmp_path / "Test Video [best].mp4"
+    finished.write_text("finished")
+
+    assert VideoDownloader._final_path(
+        {
+            "requested_downloads": [
+                "junk",
+                None,
+                {"filepath": 42},
+                {"filepath": str(finished)},
+            ],
+            "filepath": 123,
+        },
+        tmp_path,
+        "Test Video [best]",
+        "best",
+    ) == finished
+
+
 def test_simple_formats_ignores_malformed_format_entries():
     # yt-dlp metadata is not guaranteed clean: a non-dict entry in the
     # formats list used to crash _simple_formats on .get, so the whole
