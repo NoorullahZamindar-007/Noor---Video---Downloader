@@ -1,7 +1,13 @@
 ﻿from __future__ import annotations
 
-from ipaddress import ip_address
+from ipaddress import ip_address, ip_network
 from urllib.parse import urlparse
+
+
+# Carrier-grade NAT (RFC 6598): on Python 3.12 ip.is_private is False for
+# 100.64.0.0/10, so without this these addresses sailed past the SSRF
+# check and reached yt-dlp as fetchable URLs.
+_CGNAT_NETWORK = ip_network("100.64.0.0/10")
 
 
 SUPPORTED_HOSTS = {
@@ -36,6 +42,7 @@ def _is_non_public_host(host: str) -> bool:
         or ip.is_multicast
         or ip.is_reserved
         or ip.is_unspecified
+        or (ip.version == 4 and ip in _CGNAT_NETWORK)
     )
 
 

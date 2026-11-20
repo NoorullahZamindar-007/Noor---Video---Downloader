@@ -39,6 +39,8 @@ def test_validate_url_accepts_public_media_urls(url):
         "http://:8080/x",
         "https://user:secret@youtube.com/watch?v=abc",
         "http://127.0.0.1/video",
+        "http://100.64.0.1/video",
+        "http://100.127.255.255/video",
         "http://localhost./video",
         "http://0.0.0.0./video",
         "http://[::1]/video",
