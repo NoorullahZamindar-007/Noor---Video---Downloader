@@ -130,3 +130,16 @@ def test_resolve_host_status_unresolvable_when_dns_fails(monkeypatch):
 
     monkeypatch.setattr(socket, "getaddrinfo", _boom)
     assert resolve_host_status("nonexistent.invalid") == "unresolvable"
+
+
+def test_resolve_host_status_unresolvable_for_overlong_label(monkeypatch):
+    # A hostname with an over-long label raises UnicodeError from
+    # getaddrinfo (IDNA encoding), not gaierror: without catching it,
+    # it escaped _check_public_host() as a raw UnicodeError instead of
+    # the friendly "could not resolve the host name" message.
+    def _boom(host, port):
+        raise UnicodeError("label empty or too long")
+
+    monkeypatch.setattr(socket, "getaddrinfo", _boom)
+    assert resolve_host_status("a" * 300 + ".com") == "unresolvable"
+    assert host_resolves_to_non_public("a" * 300 + ".com") is True

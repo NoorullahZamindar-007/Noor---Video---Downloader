@@ -67,6 +67,12 @@ def resolve_host_status(host: str) -> str:
         infos = socket.getaddrinfo(host, None)
     except socket.gaierror:
         return "unresolvable"
+    except UnicodeError:
+        # An over-long label (or other IDNA failure) raises UnicodeError,
+        # not gaierror: without this it escaped _check_public_host() as a
+        # raw error instead of the friendly "could not resolve the host"
+        # message, even though the host simply cannot be looked up.
+        return "unresolvable"
     for _family, _type, _proto, _canon, sockaddr in infos:
         if _is_non_public_host(sockaddr[0]):
             return "non-public"
