@@ -78,3 +78,14 @@ def test_extract_playable_url_keeps_escaped_quote_in_url():
 def test_extract_playable_url_returns_none_without_match():
     assert reel._extract_playable_url('{"no_video_here":true}') is None
     assert reel._extract_playable_url("") is None
+
+
+def test_extract_playable_url_allows_whitespace_around_colon():
+    # JSON allows whitespace around the colon; a re-spaced page embed
+    # used to return None ("Cannot find video URL") even though the
+    # URL was right there in the page.
+    page = '{"playable_url" : "https://scontent.cdninstagram.com/v/a.mp4"}'
+    assert (
+        reel._extract_playable_url(page)
+        == "https://scontent.cdninstagram.com/v/a.mp4"
+    )

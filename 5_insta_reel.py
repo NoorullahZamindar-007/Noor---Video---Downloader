@@ -51,7 +51,12 @@ def _extract_playable_url(page_text: str) -> str | None:
     the media-host check. Match escape sequences as units, then decode
     them like JSON does.
     """
-    match = re.search(r'"playable_url":"((?:\\.|[^"\\])*)"', page_text)
+    # JSON allows whitespace around the colon, so a pretty-printed or
+    # re-spaced page embed ("playable_url": "...") must match too: the
+    # old pattern required the colon to touch the key and the quote,
+    # and a spaced embed returned None ("Cannot find video URL") even
+    # though the URL was right there in the page.
+    match = re.search(r'"playable_url"\s*:\s*"((?:\\.|[^"\\])*)"', page_text)
     if not match:
         return None
     try:
