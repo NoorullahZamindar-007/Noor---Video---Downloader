@@ -89,3 +89,90 @@ def test_extract_playable_url_allows_whitespace_around_colon():
         reel._extract_playable_url(page)
         == "https://scontent.cdninstagram.com/v/a.mp4"
     )
+
+
+class _FakeOutput:
+    """Stand-in for the Tk text widget: records what the downloader shows."""
+
+    def __init__(self):
+        self.text = ""
+
+    def delete(self, *args):
+        self.text = ""
+
+    def insert(self, index, text):
+        self.text += text
+
+
+class _FakeResponse:
+    def __init__(self, body, status_code=200, content_type="text/html"):
+        self._body = body
+        self.status_code = status_code
+        self.headers = {"Content-Type": content_type}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def raise_for_status(self):
+        pass
+
+    def iter_content(self, chunk_size=65536):
+        yield self._body
+
+
+def _no_fetch(*args, **kwargs):
+    raise AssertionError("requests.get must not be called")
+
+
+def test_reel_page_not_fetched_when_host_resolves_private(monkeypatch):
+    # The page fetch used to run with no host check at all: a poisoned
+    # or rebinding resolver pointing instagram.com at a LAN address
+    # would have the app GET an internal address. Refuse before any
+    # request goes out.
+    monkeypatch.setattr(reel, "resolve_host_status", lambda host: "non-public")
+    monkeypatch.setattr(reel.requests, "get", _no_fetch)
+    output = _FakeOutput()
+
+    reel.download_instagram_reel("https://www.instagram.com/reel/ABC123/", output)
+
+    assert "private address" in output.text
+
+
+def test_reel_page_not_fetched_when_host_unresolvable(monkeypatch):
+    # Same refusal, but reported as a DNS/connection problem rather
+    # than a private host: the usual cause is simply no internet.
+    monkeypatch.setattr(reel, "resolve_host_status", lambda host: "unresolvable")
+    monkeypatch.setattr(reel.requests, "get", _no_fetch)
+    output = _FakeOutput()
+
+    reel.download_instagram_reel("https://www.instagram.com/reel/ABC123/", output)
+
+    assert "Could not resolve" in output.text
+
+
+def test_reel_download_happy_path_with_mocked_network(monkeypatch, tmp_path):
+    # The full download, with the page fetch, the media fetch and the
+    # host checks all mocked: proves the new host check does not block
+    # a normal public reel.
+    monkeypatch.setattr(reel, "resolve_host_status", lambda host: "public")
+    monkeypatch.setattr(reel, "host_resolves_to_non_public", lambda host: False)
+    monkeypatch.setattr(reel, "DEFAULT_DOWNLOAD_DIR", tmp_path)
+    page = (
+        '{"playable_url":"https://scontent.cdninstagram.com/v/a.mp4"}'
+    ).encode("utf-8")
+
+    def fake_get(url, **kwargs):
+        if "cdninstagram.com" in url:
+            return _FakeResponse(b"fake video bytes", content_type="video/mp4")
+        return _FakeResponse(page)
+
+    monkeypatch.setattr(reel.requests, "get", fake_get)
+    output = _FakeOutput()
+
+    reel.download_instagram_reel("https://www.instagram.com/reel/ABC123/", output)
+
+    assert "Reel downloaded to" in output.text
+    assert (tmp_path / "ABC123.mp4").read_bytes() == b"fake video bytes"

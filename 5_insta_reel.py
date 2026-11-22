@@ -8,7 +8,7 @@ import os
 
 from config import DEFAULT_DOWNLOAD_DIR
 from utils import ensure_folder
-from validators import host_resolves_to_non_public, validate_url
+from validators import host_resolves_to_non_public, resolve_host_status, validate_url
 
 
 # Instagram serves reel media from its own CDNs; a 2 GB cap keeps a
@@ -75,6 +75,20 @@ def download_instagram_reel(url, output_text):
     url = url.strip() if isinstance(url, str) else ""
     if not _is_instagram_reel_url(url):
         output_text.insert(tk.END, "❌ Enter a public Instagram reel URL (instagram.com/reel/...).\n")
+        return
+    # The reel host is pinned to instagram.com, but DNS is not: a
+    # poisoned or rebinding resolver could point it at 127.0.0.1 or a
+    # LAN address, and requests would then GET an internal address.
+    # The main app's download/info paths and the thumbnail fetch all
+    # check the resolved host first; do the same here before fetching
+    # the page. An unresolvable host is a different message from a
+    # private one (usually just no internet), so distinguish them.
+    host_status = resolve_host_status(urlparse(url).hostname or "")
+    if host_status == "unresolvable":
+        output_text.insert(tk.END, "❌ Could not resolve instagram.com. Check your internet connection.\n")
+        return
+    if host_status == "non-public":
+        output_text.insert(tk.END, "❌ The Instagram host resolves to a private address; refusing to fetch it.\n")
         return
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
