@@ -90,7 +90,17 @@ def check_ffmpeg_installed() -> bool:
 
 def _has_final_file(folder: Path, base_filename: str) -> bool:
     prefix = f"{base_filename}."
-    for path in folder.iterdir():
+    # The folder may have become unreadable (or been replaced by a file)
+    # since ensure_folder created it: iterdir() then raises OSError, which
+    # used to escape get_unique_output_template as a raw error. Treat it
+    # as holding no finished file and let the download fail later with
+    # the real error instead. The same guard already exists in
+    # cleanup_partial_files and _final_path.
+    try:
+        entries = list(folder.iterdir())
+    except OSError:
+        return False
+    for path in entries:
         if path.is_file() and path.name.startswith(prefix) and not is_partial_file(path):
             return True
     return False

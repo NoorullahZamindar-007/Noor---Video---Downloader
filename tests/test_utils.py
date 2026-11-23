@@ -8,6 +8,7 @@ only when the file is executed directly, never in CI or via pytest.
 import pytest
 
 from utils import (
+    _has_final_file,
     cleanup_partial_files,
     coerce_dict,
     coerce_list,
@@ -132,6 +133,20 @@ def test_get_unique_output_template_avoids_existing_files(tmp_path):
 
     assert base == "My Video [best] (1)"
     assert template.endswith("My Video [best] (1).%(ext)s")
+
+
+def test_has_final_file_tolerates_unreadable_folder(tmp_path):
+    # iterdir() raises OSError when the path is a file, not a folder
+    # (or the folder lost its permissions): _has_final_file must treat
+    # it as "no finished file" and let the download fail later with
+    # the real error, instead of escaping as a raw OSError. The same
+    # guard already exists in cleanup_partial_files and _final_path.
+    not_a_folder = tmp_path / "not-a-folder"
+    not_a_folder.write_text("x")
+    assert _has_final_file(not_a_folder, "video") is False
+    # And a folder holding a finished file still reports True.
+    (tmp_path / "video [best].mp4").write_text("finished")
+    assert _has_final_file(tmp_path, "video [best]") is True
 
 
 def test_find_tool_skips_winget_scan_off_windows(monkeypatch):
