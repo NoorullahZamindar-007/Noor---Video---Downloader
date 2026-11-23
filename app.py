@@ -385,6 +385,11 @@ class NoorVideoDownloaderApp(ctk.CTk):
             from PIL import Image
 
             image = Image.open(BytesIO(content))
+            # Image.open only reads the header: a truncated or corrupt
+            # file decodes lazily, so without this the failure surfaced
+            # later, when the image was rendered, outside this try —
+            # instead of showing "Thumbnail unavailable" here.
+            image.load()
             self.thumbnail_image = ctk.CTkImage(image, size=(220, 124))
             self.thumbnail.configure(text="", image=self.thumbnail_image)
         except Exception:
