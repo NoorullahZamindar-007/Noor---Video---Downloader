@@ -105,10 +105,13 @@ class _FakeOutput:
 
 
 class _FakeResponse:
-    def __init__(self, body, status_code=200, content_type="text/html"):
+    def __init__(self, body, status_code=200, content_type="text/html", url=""):
         self._body = body
         self.status_code = status_code
         self.headers = {"Content-Type": content_type}
+        # requests sets .url to the final URL after following redirects;
+        # the download code checks it, so the fake must carry it too.
+        self.url = url
 
     def __enter__(self):
         return self
@@ -166,8 +169,8 @@ def test_reel_download_happy_path_with_mocked_network(monkeypatch, tmp_path):
 
     def fake_get(url, **kwargs):
         if "cdninstagram.com" in url:
-            return _FakeResponse(b"fake video bytes", content_type="video/mp4")
-        return _FakeResponse(page)
+            return _FakeResponse(b"fake video bytes", content_type="video/mp4", url=url)
+        return _FakeResponse(page, url=url)
 
     monkeypatch.setattr(reel.requests, "get", fake_get)
     output = _FakeOutput()
@@ -176,3 +179,79 @@ def test_reel_download_happy_path_with_mocked_network(monkeypatch, tmp_path):
 
     assert "Reel downloaded to" in output.text
     assert (tmp_path / "ABC123.mp4").read_bytes() == b"fake video bytes"
+
+
+def test_reel_page_redirect_off_instagram_is_refused(monkeypatch, tmp_path):
+    # requests follows redirects silently: the host check on the pasted
+    # URL does not cover where it ends up, so a redirect to another
+    # host must be refused before the page body is read — and the media
+    # must never be fetched.
+    monkeypatch.setattr(reel, "resolve_host_status", lambda host: "public")
+    monkeypatch.setattr(reel, "DEFAULT_DOWNLOAD_DIR", tmp_path)
+    page = (
+        '{"playable_url":"https://scontent.cdninstagram.com/v/a.mp4"}'
+    ).encode("utf-8")
+    fetched = []
+
+    def fake_get(url, **kwargs):
+        fetched.append(url)
+        return _FakeResponse(page, url="https://evil.example/reel/ABC123/")
+
+    monkeypatch.setattr(reel.requests, "get", fake_get)
+    output = _FakeOutput()
+
+    reel.download_instagram_reel("https://www.instagram.com/reel/ABC123/", output)
+
+    assert "redirected" in output.text
+    assert fetched == ["https://www.instagram.com/reel/ABC123/"]
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_reel_page_redirect_within_instagram_is_allowed(monkeypatch, tmp_path):
+    # Instagram itself redirects (instagram.com -> www/m.), so a
+    # redirect that stays on an Instagram host must still download.
+    monkeypatch.setattr(reel, "resolve_host_status", lambda host: "public")
+    monkeypatch.setattr(reel, "host_resolves_to_non_public", lambda host: False)
+    monkeypatch.setattr(reel, "DEFAULT_DOWNLOAD_DIR", tmp_path)
+    page = (
+        '{"playable_url":"https://scontent.cdninstagram.com/v/a.mp4"}'
+    ).encode("utf-8")
+
+    def fake_get(url, **kwargs):
+        if "cdninstagram.com" in url:
+            return _FakeResponse(b"fake video bytes", content_type="video/mp4", url=url)
+        return _FakeResponse(page, url="https://m.instagram.com/reel/ABC123/")
+
+    monkeypatch.setattr(reel.requests, "get", fake_get)
+    output = _FakeOutput()
+
+    reel.download_instagram_reel("https://www.instagram.com/reel/ABC123/", output)
+
+    assert "Reel downloaded to" in output.text
+    assert (tmp_path / "ABC123.mp4").read_bytes() == b"fake video bytes"
+
+
+def test_reel_media_redirect_off_cdn_is_refused(monkeypatch, tmp_path):
+    # A 302 from the CDN to an arbitrary host used to be followed and
+    # written to disk (up to 2 GB). Refuse it and leave no partial file.
+    monkeypatch.setattr(reel, "resolve_host_status", lambda host: "public")
+    monkeypatch.setattr(reel, "host_resolves_to_non_public", lambda host: False)
+    monkeypatch.setattr(reel, "DEFAULT_DOWNLOAD_DIR", tmp_path)
+    page = (
+        '{"playable_url":"https://scontent.cdninstagram.com/v/a.mp4"}'
+    ).encode("utf-8")
+
+    def fake_get(url, **kwargs):
+        if "cdninstagram.com" in url:
+            return _FakeResponse(
+                b"not a video", content_type="video/mp4", url="https://evil.example/v/a.mp4"
+            )
+        return _FakeResponse(page, url=url)
+
+    monkeypatch.setattr(reel.requests, "get", fake_get)
+    output = _FakeOutput()
+
+    reel.download_instagram_reel("https://www.instagram.com/reel/ABC123/", output)
+
+    assert "redirected" in output.text
+    assert list(tmp_path.iterdir()) == []

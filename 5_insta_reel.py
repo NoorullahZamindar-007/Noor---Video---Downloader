@@ -17,6 +17,19 @@ INSTAGRAM_MEDIA_HOSTS = (".cdninstagram.com", ".fbcdn.net")
 MAX_REEL_BYTES = 2 * 1024 * 1024 * 1024
 
 
+def _is_instagram_host(host: str) -> bool:
+    """True for instagram.com / instagr.am and any of their subdomains."""
+    return (
+        host in {"instagram.com", "instagr.am"}
+        or host.endswith((".instagram.com", ".instagr.am"))
+    )
+
+
+def _is_instagram_media_host(host: str) -> bool:
+    """True for the CDNs Instagram serves reel media from."""
+    return host.endswith(INSTAGRAM_MEDIA_HOSTS)
+
+
 def _is_instagram_reel_url(url: str) -> bool:
     """Only Instagram reel links are fetchable here; anything else used to
     be fetched blindly and then fail with a confusing 'cannot find video
@@ -34,10 +47,7 @@ def _is_instagram_reel_url(url: str) -> bool:
     # Instagram subdomain, not just the bare host and www.
     return (
         parsed.scheme in {"http", "https"}
-        and (
-            host in {"instagram.com", "instagr.am"}
-            or host.endswith((".instagram.com", ".instagr.am"))
-        )
+        and _is_instagram_host(host)
         and "/reel/" in parsed.path
     )
 
@@ -103,6 +113,16 @@ def download_instagram_reel(url, output_text):
             if page.status_code != 200:
                 output_text.insert(tk.END, "❌ Failed to fetch URL. Make sure the link is public.\n")
                 return
+            # requests follows redirects silently, so the host check
+            # above covered the URL the user pasted, not where it ended
+            # up: a redirect off Instagram (or onto an Instagram host
+            # that resolves privately) must not be read as the reel
+            # page. Instagram's own redirects stay on instagram.com,
+            # so a normal reel is unaffected.
+            final_host = (urlparse(page.url).hostname or "").lower().rstrip(".")
+            if not _is_instagram_host(final_host) or resolve_host_status(final_host) != "public":
+                output_text.insert(tk.END, "❌ The reel link redirected away from Instagram; refusing to fetch it.\n")
+                return
             for chunk in page.iter_content(chunk_size=65536):
                 if not chunk:
                     continue
@@ -125,7 +145,7 @@ def download_instagram_reel(url, output_text):
             not validate_url(video_url)[0]
             or not video_url.lower().startswith("https://")
             or host_resolves_to_non_public(video_host)
-            or not video_host.endswith(INSTAGRAM_MEDIA_HOSTS)
+            or not _is_instagram_media_host(video_host)
         ):
             output_text.insert(tk.END, "❌ The video link in this page is not a valid Instagram media URL.\n")
             return
@@ -155,6 +175,18 @@ def download_instagram_reel(url, output_text):
         try:
             with requests.get(video_url, headers=headers, stream=True, timeout=15) as r:
                 r.raise_for_status()
+                # Same redirect gap as the page fetch: the media URL was
+                # validated as an Instagram CDN link, but a 302 from the
+                # CDN to an arbitrary host would be followed and written
+                # to disk (up to 2 GB). Refuse anything that did not stay
+                # on an Instagram media host; the handler below removes
+                # any partial file, so nothing is left behind.
+                final_media_host = (urlparse(r.url).hostname or "").lower().rstrip(".")
+                if (
+                    not _is_instagram_media_host(final_media_host)
+                    or host_resolves_to_non_public(final_media_host)
+                ):
+                    raise ValueError("The media link redirected away from Instagram's media hosts.")
                 # A 200 reply is not necessarily a video: an error page
                 # served as HTML used to be written to disk as a .mp4.
                 # Refuse a body whose Content-Type is present and not a
