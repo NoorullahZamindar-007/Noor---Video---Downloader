@@ -23,6 +23,9 @@ from validators import (
         "https://youtu.be/abc",
         "https://www.youtube.com/watch?v=abc",
         "https://www.instagram.com/reel/abc/",
+        # A public address in decimal inet_aton form (8.8.8.8) must
+        # still pass: the check rejects the address, not the notation.
+        "http://134744072/video",
     ],
 )
 def test_validate_url_accepts_public_media_urls(url):
@@ -41,6 +44,15 @@ def test_validate_url_accepts_public_media_urls(url):
         "http://127.0.0.1/video",
         "http://100.64.0.1/video",
         "http://100.127.255.255/video",
+        # inet_aton spellings of private/loopback addresses: hex,
+        # decimal, octal and short forms all denote real IPs, so they
+        # must be rejected like their dotted-quad spellings.
+        "http://0x7f000001/video",
+        "http://2130706433/video",
+        "http://0177.0.0.1/video",
+        "http://127.1/video",
+        "http://0x7f.0.0.1/video",
+        "http://3232235777/video",
         "http://localhost./video",
         "http://0.0.0.0./video",
         "http://[::1]/video",

@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import socket
 from ipaddress import ip_address, ip_network
 from urllib.parse import urlparse
 
@@ -34,7 +35,21 @@ def _is_non_public_host(host: str) -> bool:
     try:
         ip = ip_address(host)
     except ValueError:
-        return False
+        # ip_address() only accepts dotted-quad and IPv6 text, but the
+        # resolver also accepts inet_aton forms — hex ("0x7f000001"),
+        # decimal ("2130706433"), octal ("0177.0.0.1") and short
+        # ("127.1") — which all denote real addresses. Those sailed
+        # past this check as "hostnames", so a literal 127.0.0.1 in
+        # disguise validated as a public URL. Parse them the way the
+        # resolver does and check the resulting address instead; a real
+        # hostname still raises here and is not an IP at all. (The
+        # fetch paths would still have caught these via DNS resolution,
+        # but the literal check should not bless them in the first
+        # place.)
+        try:
+            ip = ip_address(socket.inet_ntoa(socket.inet_aton(host)))
+        except OSError:
+            return False
     return (
         ip.is_private
         or ip.is_loopback
@@ -144,6 +159,11 @@ if __name__ == "__main__":
     assert not validate_url("http://0.0.0.0./video")[0]
     assert not validate_url("http://[::1]/video")[0]
     assert not validate_url("http://192.168.1.10/video")[0]
+    assert not validate_url("http://0x7f000001/x")[0]
+    assert not validate_url("http://2130706433/x")[0]
+    assert not validate_url("http://0177.0.0.1/x")[0]
+    assert not validate_url("http://127.1/x")[0]
+    assert validate_url("http://134744072/x")[0]
     assert not validate_url("http://[::1/video")[0]
     assert not validate_url("https://[256.256.256.256]/x")[0]
     assert detect_platform("http://[::1/video") == "-"
