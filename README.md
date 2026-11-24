@@ -73,6 +73,7 @@ Noor---Video---Downloader/
   validators.py       URL validation and platform detection
   config.py           App name, paths, window size, quality presets
   utils.py            Filenames, JSON settings, folders, formatting, cleanup
+  tests/              pytest suite for validators, downloader, utils, and the reel script
   requirements.txt    Python dependencies
   README.md           Project documentation
   LICENSE.txt         License file
@@ -116,6 +117,14 @@ Basic flow:
 4. Choose the download folder.
 5. Choose a quality.
 6. Click `Download`.
+
+## Running Tests
+
+```bash
+pytest
+```
+
+The suite covers URL validation and SSRF guards, the download flow with a stubbed yt-dlp, filename/format helpers, and the Instagram reel script. Network calls are stubbed or mocked, so the tests do not download real media.
 
 ## Quality Options
 
