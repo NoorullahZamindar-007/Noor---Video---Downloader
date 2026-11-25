@@ -75,6 +75,7 @@ Noor---Video---Downloader/
   utils.py            Filenames, JSON settings, folders, formatting, cleanup
   tests/              pytest suite for validators, downloader, utils, and the reel script
   requirements.txt    Python dependencies
+  requirements-dev.txt  Test-only dependencies (pytest)
   README.md           Project documentation
   LICENSE.txt         License file
   5_insta_reel.py     Original prototype script
@@ -121,6 +122,7 @@ Basic flow:
 ## Running Tests
 
 ```bash
+pip install -r requirements-dev.txt
 pytest
 ```
 
