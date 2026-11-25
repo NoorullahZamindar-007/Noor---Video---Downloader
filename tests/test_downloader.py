@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 import downloader as downloader_module
-from downloader import VideoDownloader
+from downloader import DependencyError, VideoDownloader
 
 
 class _FakeDownloadError(Exception):
@@ -307,3 +307,70 @@ def test_download_progress_percent_never_exceeds_one(monkeypatch, tmp_path):
     assert result == tmp_path / "Test Video [best].mp4"
     downloading = [s for s in seen if s["text"].startswith("Downloading")]
     assert downloading and downloading[0]["percent"] == 1.0
+
+
+def test_unknown_quality_fails_fast_before_any_network_work(monkeypatch, tmp_path):
+    # An unknown quality string used to fall through to the best format
+    # and silently download the wrong thing; the fail-fast guard has
+    # zero coverage, so a regression would go unnoticed. The quality
+    # check runs before the host check and any metadata fetch, so no
+    # stubbing is needed here.
+    with pytest.raises(ValueError, match="Unknown quality option"):
+        VideoDownloader().download(
+            "https://www.youtube.com/watch?v=x",
+            tmp_path,
+            "Not a quality",
+            lambda status: None,
+        )
+
+
+def test_audio_only_without_ffmpeg_fails_fast(monkeypatch, tmp_path):
+    # An MP3 conversion with no FFmpeg installed cannot finish; the
+    # guard must stop the download before the metadata fetch, not
+    # after a long download. Stub the host check and yt-dlp so the
+    # only thing standing between the call and the guard is the
+    # FFmpeg check itself.
+    monkeypatch.setattr(
+        VideoDownloader, "_yt_dlp", staticmethod(lambda: _fake_ytdlp(tmp_path))
+    )
+    monkeypatch.setattr(
+        downloader_module, "resolve_host_status", lambda host: "public"
+    )
+    monkeypatch.setattr(downloader_module, "has_ffmpeg", lambda: False)
+
+    with pytest.raises(DependencyError, match="Audio conversion requires FFmpeg"):
+        VideoDownloader().download(
+            "https://www.youtube.com/watch?v=x",
+            tmp_path,
+            "Audio only MP3",
+            lambda status: None,
+        )
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("ERROR: Private video", "private, login-restricted, or protected"),
+        ("404 Not Found", "removed or unavailable"),
+        ("geo-blocked in your country", "region-restricted"),
+        ("Unsupported URL", "unsupported by yt-dlp"),
+        ("boom", "Could not download this public media"),
+    ],
+)
+def test_friendly_error_maps_each_failure_to_its_message(raw, expected):
+    # _friendly_error decides every user-facing download error
+    # message; a typo in a keyword or a reordered branch would
+    # silently change what users see, including the deliberate
+    # "will not bypass restrictions" safety wording.
+    assert expected in VideoDownloader._friendly_error(raw)
+
+
+def test_friendly_error_include_raw_appends_stripped_error():
+    # With include_raw the original yt-dlp error is appended for
+    # debugging, but its ANSI colour codes must not leak into the UI.
+    message = VideoDownloader._friendly_error(
+        "\x1b[31mERROR: Private video\x1b[0m", include_raw=True
+    )
+    assert "private, login-restricted, or protected" in message
+    assert "ERROR: Private video" in message
+    assert "\x1b" not in message
