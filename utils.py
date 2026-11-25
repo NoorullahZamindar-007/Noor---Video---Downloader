@@ -115,7 +115,15 @@ def is_partial_file(path: Path) -> bool:
 
 def ensure_folder(path: str | Path) -> Path:
     folder = Path(path).expanduser()
-    folder.mkdir(parents=True, exist_ok=True)
+    # A folder path that is already a file (or cannot be created, e.g.
+    # permissions) used to escape as a raw "[Errno 17] File exists"
+    # OSError, which the UI showed verbatim. Say what could not be
+    # created and why instead; the exception type is unchanged, so
+    # callers' handling is unaffected.
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise OSError(f"Could not create folder {folder}: {exc.strerror or exc}") from exc
     return folder
 
 

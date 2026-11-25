@@ -12,6 +12,7 @@ from utils import (
     cleanup_partial_files,
     coerce_dict,
     coerce_list,
+    ensure_folder,
     find_tool,
     format_bytes,
     format_duration,
@@ -216,3 +217,22 @@ def test_find_tool_returns_none_on_windows_without_localappdata(monkeypatch):
 
     monkeypatch.setattr(pathlib.Path, "glob", _forbidden_glob)
     assert find_tool("ffmpeg") is None
+
+
+def test_ensure_folder_creates_nested_folders(tmp_path):
+    target = tmp_path / "a" / "b"
+    assert ensure_folder(target) == target
+    assert target.is_dir()
+    # Idempotent: an existing folder is fine.
+    assert ensure_folder(target) == target
+
+
+def test_ensure_folder_reports_clear_error_when_path_is_a_file(tmp_path):
+    # The download folder setting can point at an existing file: mkdir
+    # then raises a bare "[Errno 17] File exists" OSError, which the UI
+    # showed verbatim. The error must name the folder that could not be
+    # created instead.
+    target = tmp_path / "not-a-folder"
+    target.write_text("x", encoding="utf-8")
+    with pytest.raises(OSError, match="Could not create folder"):
+        ensure_folder(target)
