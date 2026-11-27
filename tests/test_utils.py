@@ -83,6 +83,28 @@ def test_write_json_round_trips_and_leaves_no_temp_files(tmp_path):
     assert not leftovers
 
 
+def test_read_json_falls_back_on_non_utf8_bytes(tmp_path):
+    # A settings/history file with invalid UTF-8 bytes used to raise
+    # UnicodeDecodeError out of read_json — and the app reads its
+    # settings at startup, so garbage bytes crashed the whole app
+    # instead of falling back to defaults like corrupt JSON does.
+    target = tmp_path / "settings.json"
+    target.write_bytes(b"\xff\xfe not utf-8 \x80\x81")
+    assert read_json(target, {"fallback": True}) == {"fallback": True}
+
+
+def test_write_json_tolerates_unwritable_location(tmp_path):
+    # When the settings/history folder cannot be created (here its
+    # parent path is a file), write_json used to raise out of the UI
+    # action that triggered the save, so e.g. clicking Download did
+    # nothing but print a traceback. Persistence is best-effort: the
+    # save is skipped and the action goes ahead.
+    blocker = tmp_path / "blocker"
+    blocker.write_text("not a folder")
+    write_json(blocker / "settings.json", {"a": 1})
+    assert read_json(blocker / "settings.json", {}) == {}
+
+
 @pytest.mark.parametrize(
     "name, expected",
     [

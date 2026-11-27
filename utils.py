@@ -130,7 +130,12 @@ def ensure_folder(path: str | Path) -> Path:
 def read_json(path: Path, fallback: Any) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):
+        # ValueError covers both malformed JSON (JSONDecodeError) and a
+        # file that is not valid UTF-8 at all (UnicodeDecodeError, raised
+        # by read_text before json.loads runs): either used to escape
+        # here, so a settings/history file with garbage bytes crashed
+        # the app at startup instead of falling back to defaults.
         return fallback
 
 def coerce_dict(value: Any) -> dict:
@@ -157,18 +162,28 @@ def write_json(path: Path, data: Any) -> None:
     without an atomic write, a crash mid-save would silently reset the
     user's settings and download history. The temp file + os.replace
     dance keeps the old file intact until the new one is fully written.
+
+    Best-effort: every caller is a fire-and-forget persistence step
+    (saving settings, recording history), so an unwritable location
+    (a read-only folder, a path blocked by a file) must not raise out
+    of the UI action that triggered the save — clicking Download used
+    to do nothing but print a traceback when the settings file could
+    not be written. A failed save just means the data does not persist.
     """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(data, indent=2, ensure_ascii=True)
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     try:
-        tmp.write_text(payload, encoding="utf-8")
-        os.replace(tmp, path)
-    finally:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = json.dumps(data, indent=2, ensure_ascii=True)
+        tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
         try:
-            tmp.unlink(missing_ok=True)
-        except OSError:
-            pass
+            tmp.write_text(payload, encoding="utf-8")
+            os.replace(tmp, path)
+        finally:
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+    except OSError:
+        pass
 
 
 def now_stamp() -> str:
