@@ -64,14 +64,12 @@ def _check_public_host(url: str) -> None:
 class VideoDownloader:
     def __init__(self) -> None:
         self._cancel = threading.Event()
-        self._last_file: Path | None = None
 
     def cancel(self) -> None:
         self._cancel.set()
 
     def reset(self) -> None:
         self._cancel.clear()
-        self._last_file = None
 
     def get_info(self, url: str) -> dict:
         ok, message = validate_url(url)
@@ -200,11 +198,6 @@ class VideoDownloader:
                     }
                 )
             elif status.get("status") == "finished":
-                # The only direct [] access on a hook payload: a finished
-                # status without a filename used to raise KeyError here.
-                filename = status.get("filename")
-                if filename:
-                    self._last_file = Path(filename)
                 progress({"percent": 1.0, "speed": None, "eta": None, "text": "Finalizing"})
  
         options = self._base_options()
