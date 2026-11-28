@@ -49,6 +49,11 @@ def test_format_bytes():
     assert format_bytes(float("nan")) == "-"
     assert format_bytes(2048) == "2.0 KB"
     assert format_bytes(500) == "500.0 B"
+    # An infinite or missing size is not a size: without these guards
+    # it used to render as "inf B" (or crash on None) instead of "-".
+    assert format_bytes(float("inf")) == "-"
+    assert format_bytes(float("-inf")) == "-"
+    assert format_bytes(None) == "-"
 
 
 def test_format_eta():
@@ -60,6 +65,12 @@ def test_get_quality_label():
     assert get_quality_label("Audio only MP3") == "audio-mp3"
     assert get_quality_label("1080p") == "1080p"
     assert get_quality_label("Best video") == "best"
+    # An unknown quality is not one of the presets: it is sanitised
+    # and lowercased instead of crashing, and an empty/garbage label
+    # falls back to "download" rather than producing an empty label.
+    assert get_quality_label("Custom 4K") == "custom 4k"
+    assert get_quality_label("") == "download"
+    assert get_quality_label("???") == "download"
 
 
 def test_coerce_dict_and_list():
